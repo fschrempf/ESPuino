@@ -184,7 +184,7 @@
     //#################### Settings for optional Modules##############################
     // (optinal) Neopixel
     #ifdef NEOPIXEL_ENABLE
-        #define NUM_LEDS                    24          // number of LEDs
+        #define NUM_LEDS                    30          // number of LEDs
         #define CHIPSET                     WS2812B     // type of Neopixel
         #define COLOR_ORDER                 GRB
     #endif
