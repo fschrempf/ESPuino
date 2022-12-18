@@ -487,6 +487,7 @@ static void Led_Task(void *parameter) {
             continue;
         }
 
+		bool abortCurrentLoop = false;
         switch (gPlayProperties.playMode) {
             case NO_PLAYLIST: // If no playlist is active (idle)
                 if (hlastVolume == AudioPlayer_GetCurrentVolume() && lastLedBrightness == Led_Brightness) {
@@ -534,13 +535,23 @@ static void Led_Task(void *parameter) {
                             #else
                                 if (hlastVolume != AudioPlayer_GetCurrentVolume() || lastLedBrightness != Led_Brightness || LED_INDICATOR_IS_SET(LedIndicatorType::Error) || LED_INDICATOR_IS_SET(LedIndicatorType::Ok) || gPlayProperties.playMode != NO_PLAYLIST || !gButtons[gShutdownButton].currentState || System_IsSleepRequested()) {
                             #endif
+								abortCurrentLoop = true;
+								vTaskDelay(portTICK_RATE_MS * 10);
                                 break;
                             } else {
                                 vTaskDelay(portTICK_RATE_MS * 10);
                             }
                         }
+						if (abortCurrentLoop){
+							break;
+						}
                     }
-                }
+					if (abortCurrentLoop){
+						continue;
+					}
+                } else{
+					continue;
+				}
                 break;
 
             case BUSY: // If uC is busy (parsing SD-card)
