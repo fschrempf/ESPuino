@@ -407,6 +407,9 @@ static void Led_Task(void *parameter) {
 
                 vTaskDelay(portTICK_RATE_MS * 20);
             }
+			if (!volumeChangeShown){
+				continue;
+			}
         }
 
         // < 4 LEDs: doesn't make sense at all
