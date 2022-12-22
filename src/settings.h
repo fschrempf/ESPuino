@@ -70,7 +70,7 @@
     #endif
 
     #ifdef RFID_READER_TYPE_PN5180
-        #define PN5180_ENABLE_LPCD        // Wakes up ESPuino if RFID-tag was applied while deepsleep is active. Only ISO-14443-tags are supported for wakeup!
+        // #define PN5180_ENABLE_LPCD        // Wakes up ESPuino if RFID-tag was applied while deepsleep is active. Only ISO-14443-tags are supported for wakeup!
 	#endif
 
     #if defined(RFID_READER_TYPE_MFRC522_I2C) || defined(RFID_READER_TYPE_MFRC522_SPI)
@@ -144,7 +144,7 @@
     //#################### Various settings ##############################
 
     // Serial-logging-configuration
-    #define SERIAL_LOGLEVEL LOGLEVEL_DEBUG              // Current loglevel for serial console
+    #define SERIAL_LOGLEVEL LOGLEVEL_INFO              // Current loglevel for serial console
 
     // Static ip-configuration
     #ifdef STATIC_IP_ENABLE
