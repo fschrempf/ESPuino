@@ -68,7 +68,7 @@ extern unsigned long Rfid_LastRfidCheckTimestamp;
 		xTaskCreatePinnedToCore(
 			Rfid_Task,              /* Function to implement the task */
 			"rfid",                 /* Name of the task */
-			1536,                   /* Stack size in words */
+			2036,                   /* Stack size in words */
 			NULL,                   /* Task input parameter */
 			2 | portPRIVILEGE_BIT,  /* Priority of the task */
 			&rfidTaskHandle,        /* Task handle. */
@@ -307,7 +307,7 @@ extern unsigned long Rfid_LastRfidCheckTimestamp;
 				return;
 			}
 			Log_Println((char *) F("prepare low power card detection..."), LOGLEVEL_NOTICE);
-			uint8_t irqConfig = 0b0000000; // Set IRQ active low + clear IRQ-register
+			uint8_t irqConfig = 0b0000001; // Set IRQ active low + clear IRQ-register
 			nfc.writeEEprom(IRQ_PIN_CONFIG, &irqConfig, 1);
 			/*nfc.readEEprom(IRQ_PIN_CONFIG, &irqConfig, 1);
 			Serial.print(F("IRQ_PIN_CONFIG=0x"));
@@ -321,7 +321,7 @@ extern unsigned long Rfid_LastRfidCheckTimestamp;
 				Log_Println((char *) F("switch to low power card detection: success"), LOGLEVEL_NOTICE);
 				// configure wakeup pin for deep-sleep wake-up, use ext1
 				#if (RFID_IRQ >= 0 && RFID_IRQ <= MAX_GPIO)
-					esp_sleep_enable_ext1_wakeup((1ULL << (RFID_IRQ)), ESP_EXT1_WAKEUP_ALL_LOW);
+					esp_sleep_enable_ext1_wakeup((1ULL << (RFID_IRQ)), ESP_EXT1_WAKEUP_ANY_HIGH);
 				#endif
 				// freeze pin states in deep sleep
 				gpio_hold_en(gpio_num_t(RFID_CS));  // CS/NSS
@@ -354,7 +354,7 @@ extern unsigned long Rfid_LastRfidCheckTimestamp;
 				if (nfc14443.switchToLPCD(wakeupCounterInMs)) {
 					Log_Println((char *) FPSTR(lowPowerCardSuccess), LOGLEVEL_INFO);
 					// configure wakeup pin for deep-sleep wake-up, use ext1
-					esp_sleep_enable_ext1_wakeup((1ULL << (RFID_IRQ)), ESP_EXT1_WAKEUP_ALL_LOW);
+					esp_sleep_enable_ext1_wakeup((1ULL << (RFID_IRQ)), ESP_EXT1_WAKEUP_ANY_HIGH);
 					// freeze pin states in deep sleep
 					gpio_hold_en(gpio_num_t(RFID_CS));  // CS/NSS
 					gpio_hold_en(gpio_num_t(RFID_RST)); // RST
