@@ -121,20 +121,20 @@
     #define BUTTON_0_LONG     CMD_LASTTRACK
     #define BUTTON_1_LONG     CMD_FIRSTTRACK
     #define BUTTON_2_LONG     CMD_PLAYPAUSE
-    #define BUTTON_3_LONG     CMD_SLEEPMODE
+    #define BUTTON_3_LONG     CMD_NOTHING
     #define BUTTON_4_LONG     CMD_VOLUMEUP
     #define BUTTON_5_LONG     CMD_VOLUMEDOWN
 
     #define BUTTON_MULTI_01   CMD_NOTHING   //CMD_TOGGLE_WIFI_STATUS (disabled now to prevent children from unwanted WiFi-disable)
-    #define BUTTON_MULTI_02   CMD_ENABLE_FTP_SERVER
+    #define BUTTON_MULTI_02   CMD_NOTHING
     #define BUTTON_MULTI_03   CMD_NOTHING
     #define BUTTON_MULTI_04   CMD_NOTHING
     #define BUTTON_MULTI_05   CMD_NOTHING
-    #define BUTTON_MULTI_12   CMD_TELL_IP_ADDRESS
-    #define BUTTON_MULTI_13   CMD_NOTHING
+    #define BUTTON_MULTI_12   CMD_NOTHING
+    #define BUTTON_MULTI_13   CMD_TOGGLE_WIFI_STATUS
     #define BUTTON_MULTI_14   CMD_NOTHING
     #define BUTTON_MULTI_15   CMD_NOTHING
-    #define BUTTON_MULTI_23   CMD_NOTHING
+    #define BUTTON_MULTI_23   CMD_LOCK_BUTTONS_MOD
     #define BUTTON_MULTI_24   CMD_NOTHING
     #define BUTTON_MULTI_25   CMD_NOTHING
     #define BUTTON_MULTI_34   CMD_NOTHING
@@ -158,8 +158,8 @@
     constexpr uint8_t buttonDebounceInterval = 50;                // Interval in ms to software-debounce buttons
     constexpr uint16_t intervalToLongPress = 700;                 // Interval in ms to distinguish between short and long press of buttons
 
-    //#define CONTROLS_LOCKED_BY_DEFAULT			// If set the controls are locked at boot
-    #define INCLUDE_ROTARY_IN_CONTROLS_LOCK			// If set the rotary encoder is locked if controls are locked
+    #define CONTROLS_LOCKED_BY_DEFAULT			// If set the controls are locked at boot
+    //#define INCLUDE_ROTARY_IN_CONTROLS_LOCK			// If set the rotary encoder is locked if controls are locked
 
     // RFID-RC522
     #define RFID_SCAN_INTERVAL 100                      // Interval-time in ms (how often is RFID read?)
@@ -175,7 +175,7 @@
 
     // ESPuino will create a WiFi if joing existing WiFi was not possible. Name can be configured here.
     constexpr const char accessPointNetworkSSID[] PROGMEM = "ESPuino";     // Access-point's SSID
-    
+
 	// Bluetooth
 	constexpr const char nameBluetoothSinkDevice[] PROGMEM = "ESPuino";        // Name of your ESPuino as Bluetooth-device
     constexpr const char nameBluetoothSourceDevice[] PROGMEM = "My POGS Wireless Headphone"; // Name of Bluetooth-device to connect to (BT-Headset name) (https://forum.espuino.de/t/neues-feature-bluetooth-kopfhoerer/1293/)
@@ -187,7 +187,7 @@
     //#################### Settings for optional Modules##############################
     // (optinal) Neopixel
     #ifdef NEOPIXEL_ENABLE
-        #define NUM_LEDS                    24          // number of LEDs
+        #define NUM_LEDS                    30          // number of LEDs
         #define CHIPSET                     WS2812B     // type of Neopixel
         #define COLOR_ORDER                 GRB
         #define PROGRESS_HUE_START          85          // Start and end hue of mulitple-LED progress indicator. Hue ranges from basically 0 - 255, but you can also set numbers outside this range to get the desired effect (e.g. 85-215 will go from green to purple via blue, 341-215 start and end at exactly the same color but go from green to purple via yellow and red)
