@@ -185,6 +185,7 @@
     // (optinal) Neopixel
     #ifdef NEOPIXEL_ENABLE
         #define NUM_LEDS                    30          // number of LEDs
+		#define NUM_LEDS_IDLE_DOTS			5
         #define CHIPSET                     WS2812B     // type of Neopixel
         #define COLOR_ORDER                 GRB
     #endif
