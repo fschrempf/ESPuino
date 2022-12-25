@@ -515,17 +515,21 @@ static void Led_Task(void *parameter) {
 							}
 						}
 						FastLED.clear();
-						if (Led_Address(i) == 0) { // White if Wifi is enabled and blue if not
-							leds[0] = idleColor;
-							leds[NUM_LEDS / 4] = idleColor;
-							leds[NUM_LEDS / 2] = idleColor;
-							leds[NUM_LEDS / 4 * 3] = idleColor;
-						} else {
-							leds[Led_Address(i) % NUM_LEDS] = idleColor;
-							leds[(Led_Address(i) + NUM_LEDS / 4) % NUM_LEDS] = idleColor;
-							leds[(Led_Address(i) + NUM_LEDS / 2) % NUM_LEDS] = idleColor;
-							leds[(Led_Address(i) + NUM_LEDS / 4 * 3) % NUM_LEDS] = idleColor;
-						}
+						// if (Led_Address(i) == 0) { // White if Wifi is enabled and blue if not
+							uint8_t distance = NUM_LEDS / NUM_LEDS_IDLE_DOTS;
+							for (uint8_t j=0;j<NUM_LEDS_IDLE_DOTS;j++){
+								leds[(Led_Address(i)+j*distance)%NUM_LEDS]= idleColor;
+							}
+							// leds[0] = idleColor;
+							// leds[NUM_LEDS / 4] = idleColor;
+							// leds[NUM_LEDS / 2] = idleColor;
+							// leds[NUM_LEDS / 4 * 3] = idleColor;
+						// } else {
+						// 	leds[Led_Address(i) % NUM_LEDS] = idleColor;
+						// 	leds[(Led_Address(i) + NUM_LEDS / 4) % NUM_LEDS] = idleColor;
+						// 	leds[(Led_Address(i) + NUM_LEDS / 2) % NUM_LEDS] = idleColor;
+						// 	leds[(Led_Address(i) + NUM_LEDS / 4 * 3) % NUM_LEDS] = idleColor;
+						// }
 						FastLED.show();
 						for (uint8_t i = 0; i <= 50; i++) {
 							#ifdef BATTERY_MEASURE_ENABLE
