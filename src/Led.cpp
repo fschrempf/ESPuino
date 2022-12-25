@@ -515,17 +515,21 @@ static void Led_Task(void *parameter) {
 							}
 						}
 						FastLED.clear();
-						if (Led_Address(i) == 0) { // White if Wifi is enabled and blue if not
-							leds[0] = idleColor;
-							leds[NUM_LEDS / 4] = idleColor;
-							leds[NUM_LEDS / 2] = idleColor;
-							leds[NUM_LEDS / 4 * 3] = idleColor;
-						} else {
-							leds[Led_Address(i) % NUM_LEDS] = idleColor;
-							leds[(Led_Address(i) + NUM_LEDS / 4) % NUM_LEDS] = idleColor;
-							leds[(Led_Address(i) + NUM_LEDS / 2) % NUM_LEDS] = idleColor;
-							leds[(Led_Address(i) + NUM_LEDS / 4 * 3) % NUM_LEDS] = idleColor;
+						// if (Led_Address(i) == 0) { // White if Wifi is enabled and blue if not
+						uint8_t distance = NUM_LEDS / NUM_LEDS_IDLE_DOTS;
+						for (uint8_t j=0;j<NUM_LEDS_IDLE_DOTS;j++){
+							leds[(Led_Address(i)+j*distance)%NUM_LEDS]= idleColor;
 						}
+							// leds[0] = idleColor;
+							// leds[NUM_LEDS / 4] = idleColor;
+							// leds[NUM_LEDS / 2] = idleColor;
+							// leds[NUM_LEDS / 4 * 3] = idleColor;
+						// } else {
+						// 	leds[Led_Address(i) % NUM_LEDS] = idleColor;
+						// 	leds[(Led_Address(i) + NUM_LEDS / 4) % NUM_LEDS] = idleColor;
+						// 	leds[(Led_Address(i) + NUM_LEDS / 2) % NUM_LEDS] = idleColor;
+						// 	leds[(Led_Address(i) + NUM_LEDS / 4 * 3) % NUM_LEDS] = idleColor;
+						// }
 						FastLED.show();
 						for (uint8_t i = 0; i <= 50; i++) {
 							#ifdef BATTERY_MEASURE_ENABLE
@@ -566,17 +570,21 @@ static void Led_Task(void *parameter) {
 				} else {
 					for (uint8_t i = 0; i < NUM_LEDS; i++) {
 						FastLED.clear();
-						if (Led_Address(i) == 0) {
-							leds[0] = CRGB::BlueViolet;
-							leds[NUM_LEDS / 4] = CRGB::BlueViolet;
-							leds[NUM_LEDS / 2] = CRGB::BlueViolet;
-							leds[NUM_LEDS / 4 * 3] = CRGB::BlueViolet;
-						} else {
-							leds[Led_Address(i) % NUM_LEDS] = CRGB::BlueViolet;
-							leds[(Led_Address(i) + NUM_LEDS / 4) % NUM_LEDS] = CRGB::BlueViolet;
-							leds[(Led_Address(i) + NUM_LEDS / 2) % NUM_LEDS] = CRGB::BlueViolet;
-							leds[(Led_Address(i) + NUM_LEDS / 4 * 3) % NUM_LEDS] = CRGB::BlueViolet;
+						uint8_t distance = NUM_LEDS / NUM_LEDS_IDLE_DOTS;
+						for (uint8_t j=0;j<NUM_LEDS_IDLE_DOTS;j++){
+							leds[(Led_Address(i)+j*distance)%NUM_LEDS]= idleColor;
 						}
+						// if (Led_Address(i) == 0) {
+						// 	leds[0] = CRGB::BlueViolet;
+						// 	leds[NUM_LEDS / 4] = CRGB::BlueViolet;
+						// 	leds[NUM_LEDS / 2] = CRGB::BlueViolet;
+						// 	leds[NUM_LEDS / 4 * 3] = CRGB::BlueViolet;
+						// } else {
+						// 	leds[Led_Address(i) % NUM_LEDS] = CRGB::BlueViolet;
+						// 	leds[(Led_Address(i) + NUM_LEDS / 4) % NUM_LEDS] = CRGB::BlueViolet;
+						// 	leds[(Led_Address(i) + NUM_LEDS / 2) % NUM_LEDS] = CRGB::BlueViolet;
+						// 	leds[(Led_Address(i) + NUM_LEDS / 4 * 3) % NUM_LEDS] = CRGB::BlueViolet;
+						// }
 						FastLED.show();
 						if (gPlayProperties.playMode != BUSY) {
 							break;
@@ -633,12 +641,16 @@ static void Led_Task(void *parameter) {
 									generalColor = speechColor;
 								}
 
-								leds[Led_Address(0)] = generalColor;
-								if (NUM_LEDS > 1) {
-									leds[(Led_Address(NUM_LEDS / 4)) % NUM_LEDS] = generalColor;
-									leds[(Led_Address(NUM_LEDS / 2)) % NUM_LEDS] = generalColor;
-									leds[(Led_Address(NUM_LEDS / 4 * 3)) % NUM_LEDS] = generalColor;
+								uint8_t distance = NUM_LEDS/NUM_LEDS_IDLE_DOTS;
+								for (uint8_t j=0;j<NUM_LEDS_IDLE_DOTS;j++){
+								leds[(Led_Address(distance/2 - 1) + j*distance)%NUM_LEDS]= generalColor;
 								}
+								// leds[Led_Address(0)] = generalColor;
+								// if (NUM_LEDS > 1) {
+								// 	leds[(Led_Address(NUM_LEDS / 4)) % NUM_LEDS] = generalColor;
+								// 	leds[(Led_Address(NUM_LEDS / 2)) % NUM_LEDS] = generalColor;
+								// 	leds[(Led_Address(NUM_LEDS / 4 * 3)) % NUM_LEDS] = generalColor;
+								// }
 								break;
 							}
 						}

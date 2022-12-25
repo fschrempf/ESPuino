@@ -187,6 +187,7 @@
         #define NUM_LEDS                    30          // number of LEDs
         #define CHIPSET                     WS2812B     // type of Neopixel
         #define COLOR_ORDER                 GRB
+        #define NUM_LEDS_IDLE_DOTS          5           // count of LEDs, which are shown when Idle
     #endif
 
     #if defined(MEASURE_BATTERY_VOLTAGE) || defined(MEASURE_BATTERY_MAX17055)
