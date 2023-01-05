@@ -719,6 +719,20 @@ void AudioPlayer_Task(void *parameter) {
 			}
 		}
 
+		// Handle IP-announcement
+		if (gPlayProperties.tellCustomText) {
+			gPlayProperties.tellCustomText = false;
+			bool speechOk;
+			#if (LANGUAGE == DE)
+				speechOk = audio->connecttospeech("Hallo Noemi", "de");
+			#else
+				speechOk = audio->connecttospeech("Hallo Noemi", "en");
+			#endif
+			if (!speechOk) {
+				System_IndicateError();
+			}
+		}
+
 		// If speech is over, go back to predefined state
 		if (!gPlayProperties.currentSpeechActive && gPlayProperties.lastSpeechActive) {
 			gPlayProperties.lastSpeechActive = false;
