@@ -723,10 +723,11 @@ void AudioPlayer_Task(void *parameter) {
 		if (gPlayProperties.tellCustomText) {
 			gPlayProperties.tellCustomText = false;
 			bool speechOk;
+			String customText = gPrefsSettings.getString("customText", "Hallo Noemi.");
 			#if (LANGUAGE == DE)
-				speechOk = audio->connecttospeech("Hallo Noemi", "de");
+				speechOk = audio->connecttospeech(customText.c_str(), "de");
 			#else
-				speechOk = audio->connecttospeech("Hallo Noemi", "en");
+				speechOk = audio->connecttospeech(customText.c_str(), "en");
 			#endif
 			if (!speechOk) {
 				System_IndicateError();

@@ -318,6 +318,7 @@
 								<option value="140">Bluetooth Lautsprecher aktivieren/deaktivieren</option>
 								<option value="141">Bluetooth Kopfhörer aktivieren/deaktivieren</option>
 								<option value="150">Aktiviere FTP</option>
+								<option value="152">Spreche Text</option>
 								<option value="0">Lösche Zuordnung</option>
 								<option value="170">Play/Pause</option>
 								<option value="171">Vorheriger Titel</option>
@@ -461,6 +462,18 @@
 						<label for="inactivityTime">Inaktivität nach (in Minuten)</label>
 						<div class="text-center"><i class="fas fa-hourglass-start fa-2x .icon-pos"></i> <input type="number" data-provide="slider" data-slider-min="0" data-slider-max="30" min="1" max="120" class="form-control" id="inactivityTime" name="inactivityTime"
 						 data-slider-value="%MAX_INACTIVITY%"  value="%MAX_INACTIVITY%" required><i class="fas fa-hourglass-end fa-2x .icon-pos"></i></div>
+					</fieldset>
+				</div>
+<br>
+				<div class="form-group col-md-12">
+					<fieldset>
+						<legend>Custom Text</legend>
+
+						<label for="customText">Custom Text:</label>
+						<input type="text" class="form-control" id="customText" placeholder="CUSTOM TEXT" name="customText" required>
+						<div class="invalid-feedback">
+							Bitte Custom-Text eintragen.
+						</div>
 					</fieldset>
 				</div>
 <br>
@@ -1209,7 +1222,8 @@
 				vWarning: document.getElementById('warningLowVoltage').value,
 				vIndLow: document.getElementById('voltageIndicatorLow').value,
 				vIndHi: document.getElementById('voltageIndicatorHigh').value,
-				vInt: document.getElementById('voltageCheckInterval').value
+				vInt: document.getElementById('voltageCheckInterval').value,
+				vCustText: document.getElementById('customText').value
 			}
 		};
 		var myJSON = JSON.stringify(myObj);
