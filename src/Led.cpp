@@ -568,8 +568,12 @@ static void Led_Task(void *parameter) {
 			case NO_PLAYLIST: // If no playlist is active (idle)
 				if (hlastVolume == AudioPlayer_GetCurrentVolume() && lastLedBrightness == Led_Brightness) {
 					for (uint8_t i = 0; i < NUM_LEDS; i++) {
-						if (hlastVolume != AudioPlayer_GetCurrentVolume()) {
-							// skip idle pattern if volume has changed
+						// skip idle pattern if volume or something else has changed
+						#ifdef BATTERY_MEASURE_ENABLE
+							if (hlastVolume != AudioPlayer_GetCurrentVolume() || lastLedBrightness != Led_Brightness || LED_INDICATOR_IS_SET(LedIndicatorType::Error) || LED_INDICATOR_IS_SET(LedIndicatorType::Ok) || LED_INDICATOR_IS_SET(LedIndicatorType::VoltageWarning) || LED_INDICATOR_IS_SET(LedIndicatorType::Voltage) || gPlayProperties.playMode != NO_PLAYLIST || !gButtons[gShutdownButton].currentState || System_IsSleepRequested()) {
+						#else
+							if (hlastVolume != AudioPlayer_GetCurrentVolume() || lastLedBrightness != Led_Brightness || LED_INDICATOR_IS_SET(LedIndicatorType::Error) || LED_INDICATOR_IS_SET(LedIndicatorType::Ok) || gPlayProperties.playMode != NO_PLAYLIST || !gButtons[gShutdownButton].currentState || System_IsSleepRequested()) {
+						#endif
 							break;
 						}
 						if (OPMODE_BLUETOOTH_SINK == System_GetOperationMode()) {
