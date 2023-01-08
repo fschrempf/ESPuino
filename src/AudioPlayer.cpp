@@ -626,9 +626,11 @@ void AudioPlayer_Task(void *parameter) {
 				audioReturnCode = audio->connecttohost(*(gPlayProperties.playlist + gPlayProperties.currentTrackNumber));
 				gPlayProperties.playlistFinished = false;
 			} else if (gPlayProperties.playMode == TEXT_TO_SPEECH) {
+				audioReturnCode = true; // is handled later
 				gPlayProperties.tellCustomText = true;
 				gPlayProperties.currentSpeechActive = true;
 				gPlayProperties.lastSpeechActive = true;
+				gPlayProperties.playlistFinished = false;
 			} else if (gPlayProperties.playMode != WEBSTREAM && !gPlayProperties.isWebstream) {
 				// Files from SD
 				if (!gFSystem.exists(*(gPlayProperties.playlist + gPlayProperties.currentTrackNumber))) { // Check first if file/folder exists

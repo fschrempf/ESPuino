@@ -28,7 +28,7 @@
 #define ALL_TRACKS_OF_DIR_RANDOM_LOOP    9          // Play all files of a directory (randomized) in infinite-loop
 #define RANDOM_SUBDIRECTORY_OF_DIRECTORY 13         // Picks a random subdirectory from a given directory and do ALL_TRACKS_OF_DIR_SORTED
 #define WEBSTREAM                        8          // Play webradio-stream
-#define TEXT_TO_SPEECH                   14          // Play webradio-stream
+#define TEXT_TO_SPEECH                   14         // Play Text To Speech
 #define LOCAL_M3U                        11         // Plays items (webstream or files) with addresses/paths from a local m3u-file
 #define BUSY                             10         // Used if playlist is created
 
