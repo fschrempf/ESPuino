@@ -127,7 +127,7 @@
     #define BUTTON_4_LONG     CMD_VOLUMEUP
     #define BUTTON_5_LONG     CMD_VOLUMEDOWN
 
-    #define BUTTON_MULTI_01   CMD_NOTHING // (back + next)
+    #define BUTTON_MULTI_01   CMD_TELL_CUSTOM_TEXT // (back + next)
     #define BUTTON_MULTI_02   CMD_ENABLE_FTP_SERVER // (next + play)
     #define BUTTON_MULTI_03   CMD_TOGGLE_BLUETOOTH_SINK_MODE // (power + next)
     #define BUTTON_MULTI_04   CMD_NOTHING
