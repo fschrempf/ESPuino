@@ -228,6 +228,39 @@
 					<legend>Current track</legend>
 					<div id="track"></div>
 				</div>
+				<div class="form-group col-md-12">
+					<legend>Command Control</legend>
+					<select class="form-control" id="modId" name="modId">
+						<option class="placeholder" disabled selected value="">Select command</option>
+						<option value="100">Keylock</option>
+						<option value="179">Sleep immediately</option>
+						<option value="101">Sleep after 15 minutes</option>
+						<option value="102">Sleep after 30 minutes</option>
+						<option value="103">Sleep after 1 hour</option>
+						<option value="104">Sleep after 2 hours</option>
+						<option value="105">Sleep after end of track</option>
+						<option value="106">Sleep after end of playlist</option>
+						<option value="107">Sleep after end of five tracks</option>
+						<option value="110">Loop playlist</option>
+						<option value="111">Loop track</option>
+						<option value="120">Dim LEDs (nightmode)</option>
+						<option value="130">Toggle WiFi</option>
+						<option value="140">Toggle Bluetooth</option>
+						<option value="141">Bluetooth Headphone enable/disable </option>
+						<option value="150">Enable FTP</option>
+						<option value="152">Speek Text</option>
+						<option value="0">Remove assignment</option>
+						<option value="170">Toggle Play/Pause</option>
+						<option value="171">Previous track</option>
+						<option value="172">Next track</option>
+						<option value="173">First track</option>
+						<option value="174">Last track</option>
+						<option value="180">Seek forwards (n seconds)</option>
+						<option value="181">Seek backwards (n seconds)</option>
+					</select>
+					<button type="button" onclick="executeCommand()" class="btn btn-primary" >Ausführen</button>
+				</div>
+
 		</div>
 	</div>
 	<div class="tab-pane fade show active" id="nav-rfid" role="tabpanel" aria-labelledby="nav-rfid-tab">
@@ -295,6 +328,7 @@
 								<option class="option-folder" value="9">All tracks of a directory (random, loop)</option>
 								<option class="option-folder" value="13">All tracks of a random subdirectory (sorted alph.)</option>
 								<option class="option-stream" value="8">Webradio</option>
+								<option class="option-stream" value="14">Text To Speech</option>
 								<option class="option-stream" value="11">List (files from SD and/or webstreams) from local .m3u-File</option>
 							</select>
 						</div>
@@ -303,7 +337,7 @@
 							<select class="form-control" id="modId" name="modId">
 								<option class="placeholder" disabled selected value="">Select modification</option>
 								<option value="100">Keylock</option>
-								<option value="179">Schlafe immediately</option>
+								<option value="179">Sleep immediately</option>
 								<option value="101">Sleep after 15 minutes</option>
 								<option value="102">Sleep after 30 minutes</option>
 								<option value="103">Sleep after 1 hour</option>
@@ -313,10 +347,12 @@
 								<option value="107">Sleep after end of five tracks</option>
 								<option value="110">Loop playlist</option>
 								<option value="111">Loop track</option>
-								<option value="120">Dimm LEDs (nightmode)</option>
+								<option value="120">Dim LEDs (nightmode)</option>
 								<option value="130">Toggle WiFi</option>
 								<option value="140">Toggle Bluetooth</option>
+								<option value="141">Bluetooth Headphone enable/disable</option>
 								<option value="150">Enable FTP</option>
+								<option value="152">Speek Text</option>
 								<option value="0">Remove assignment</option>
 								<option value="170">Toggle Play/Pause</option>
 								<option value="171">Previous track</option>
@@ -442,7 +478,7 @@
 					<label for="initBrightness">After restart:</label>
 						<div class="text-center">
 							<i class="far fa-sun fa-2x .icon-pos"></i>
-						<input data-provide="slider" type="number" data-slider-min="0" data-slider-max="255" min="0" max="255" class="form-control" id="initBrightness" name="initBrightness"
+						<input data-provide="slider" type="number" data-slider-min="0" data-slider-max="254" min="0" max="254" class="form-control" id="initBrightness" name="initBrightness"
 							   data-slider-value="%INIT_LED_BRIGHTNESS%"  value="%INIT_LED_BRIGHTNESS%" required><i class="fas fa-sun fa-2x .icon-pos"></i>
 						</div>
 
@@ -460,6 +496,18 @@
 						<label for="inactivityTime">After n minutes inactivity</label>
 						<div class="text-center"><i class="fas fa-hourglass-start fa-2x .icon-pos"></i> <input type="number" data-provide="slider" data-slider-min="0" data-slider-max="30" min="1" max="120" class="form-control" id="inactivityTime" name="inactivityTime"
 						 data-slider-value="%MAX_INACTIVITY%"  value="%MAX_INACTIVITY%" required><i class="fas fa-hourglass-end fa-2x .icon-pos"></i></div>
+					</fieldset>
+				</div>
+<br>
+				<div class="form-group col-md-12">
+					<fieldset>
+						<legend>Custom Text</legend>
+
+						<label for="customText">Custom Text that is played on key-press:</label>
+						<input type="text" class="form-control" id="customText" placeholder="CUSTOM TEXT" name="customText" required>
+						<div class="invalid-feedback">
+							Please enter custom-text.
+						</div>
 					</fieldset>
 				</div>
 <br>
@@ -1208,7 +1256,8 @@
 				vWarning: document.getElementById('warningLowVoltage').value,
 				vIndLow: document.getElementById('voltageIndicatorLow').value,
 				vIndHi: document.getElementById('voltageIndicatorHigh').value,
-				vInt: document.getElementById('voltageCheckInterval').value
+				vInt: document.getElementById('voltageCheckInterval').value,
+				vCustText: document.getElementById('customText').value
 			}
 		};
 		var myJSON = JSON.stringify(myObj);
@@ -1309,6 +1358,17 @@
 		var myJSON = JSON.stringify(myObj);
 		socket.send(myJSON);
 	}
+
+	function executeCommand() {
+		var myObj = {
+			"controls": {
+				action: document.getElementById('commandId').value
+			}
+		};
+		var myJSON = JSON.stringify(myObj);
+		socket.send(myJSON);
+	}
+
 	function sendVolume(vol) {
 		var myObj = {
 			"controls": {

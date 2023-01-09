@@ -12,6 +12,7 @@ typedef struct { // Bit field
 	double currentRelPos;                       // Current relative playPosition (in %)
 	bool sleepAfterCurrentTrack:        1;      // If uC should go to sleep after current track
 	bool sleepAfterPlaylist:            1;      // If uC should go to sleep after whole playlist
+	bool sleepAfter5Tracks:             1;      // If uC should go to sleep after 5 tracks
 	bool saveLastPlayPosition:          1;      // If playposition/current track should be saved (for AUDIOBOOK)
 	char playRfidTag[13];                       // ID of RFID-tag that started playlist
 	bool pausePlay:                     1;      // If pause is active
@@ -23,6 +24,7 @@ typedef struct { // Bit field
 	bool currentPlayMono:               1;      // true if mono; false if stereo
 	bool isWebstream:                   1;      // Indicates if track currenty played is a webstream
 	bool tellIpAddress:                 1;      // If true current IP-address is spoken
+	bool tellCustomText:                1;      // If true current IP-address is spoken
 	bool currentSpeechActive:           1;      // If speech-play is active
 	bool lastSpeechActive:              1;      // If speech-play was active
 	size_t coverFilePos;                        // current cover file position
