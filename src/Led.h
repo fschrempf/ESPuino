@@ -11,6 +11,28 @@ typedef enum class LedIndicator
 	VoltageWarning
 } LedIndicatorType;
 
+
+// ordered by priority
+typedef enum class LedAnimation
+{
+	NoNewAnimation = 0,
+	Boot,
+	Shutdown,
+	Error,
+	Ok,
+	VoltageWarning,
+	BatteryMeasurement,
+	Volume,
+	Rewind,
+	Playlist,
+	Idle,
+	Busy,
+	Speech,
+	Pause,
+	Progress,
+	Webstream
+}LedAnimationType;
+
 void Led_Init(void);
 void Led_Exit(void);
 void Led_Indicate(LedIndicatorType value);
