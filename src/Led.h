@@ -25,12 +25,12 @@ typedef enum class LedAnimation
 	Volume,
 	Rewind,
 	Playlist,
-	Idle,
 	Busy,
 	Speech,
 	Pause,
 	Progress,
-	Webstream
+	Webstream,
+	Idle
 }LedAnimationType;
 
 void Led_Init(void);
