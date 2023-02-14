@@ -226,7 +226,6 @@ void Led_SetButtonLedsEnabled(boolean value) {
 		static int32_t animationTimer;
 		static uint32_t animationIndex;
 
-
 		for (;;) {
 			// special handling
 			if (Led_Pause) { // Workaround to prevent exceptions while NVS-writes take place
@@ -499,7 +498,7 @@ void Led_SetButtonLedsEnabled(boolean value) {
 					case LedAnimationType::BatteryMeasurement: {
 						AnimationReturnType ret = Animation_BatteryMeasurement(startNewAnimation, leds);
 						animationActive = ret.animationActive;
-						animaitonTimer = ret.animationDelay;
+						animationTimer = ret.animationDelay;
 					} break;
 
 					// --------------------------------------------------
@@ -526,7 +525,7 @@ void Led_SetButtonLedsEnabled(boolean value) {
 					case LedAnimationType::Playlist: {
 						AnimationReturnType ret = Animation_PlaylistProgress(startNewAnimation, leds);
 						animationActive = ret.animationActive;
-						animaitonTimer = ret.animationDelay;
+						animationTimer = ret.animationDelay;
 					} break;
 
 					// --------------------------------------------------
