@@ -46,6 +46,9 @@
 
 	static void Led_Task(void *parameter);
 	static uint8_t Led_Address(uint8_t number);
+
+	// animation-functions prototypes
+	AnimationReturnType Animation_PlaylistProgress(bool startNewAnimation, CRGB* leds);
 #endif
 
 void Led_Init(void) {
@@ -243,6 +246,7 @@ void Led_SetButtonLedsEnabled(boolean value) {
 			}
 
 			uint32_t taskDelay = 20;
+			bool startNewAnimation = false;
 
 			// check indications and set led-mode
 			if (!LED_INDICATOR_IS_SET(LedIndicatorType::BootComplete)) {
@@ -296,6 +300,7 @@ void Led_SetButtonLedsEnabled(boolean value) {
 			if ((!animationActive) && (animaitonTimer <= 0)) {
 				activeAnimation = nextAniaiton; // set new animation
 				animationIndex = 0;
+				startNewAnimation = true;
 			}
 
 			// apply brightness-changes
@@ -568,99 +573,9 @@ void Led_SetButtonLedsEnabled(boolean value) {
 					// Animation of Playlist-Progress
 					// --------------------------------------------------
 					case LedAnimationType::Playlist: {
-						if (NUM_LEDS >= 4) {
-							if (gPlayProperties.numberOfTracks > 1 && gPlayProperties.currentTrackNumber < gPlayProperties.numberOfTracks) {
-								const uint32_t ledValue =  map(gPlayProperties.currentTrackNumber, 0, gPlayProperties.numberOfTracks - 1, 0, NUM_LEDS * DIMMABLE_STATES);
-								const uint8_t fullLeds = ledValue / DIMMABLE_STATES;
-								const uint8_t lastLed = ledValue % DIMMABLE_STATES;
-
-								if (LED_INDICATOR_IS_SET(LedIndicatorType::PlaylistProgress)) {
-									LED_INDICATOR_CLEAR(LedIndicatorType::PlaylistProgress);
-									// only animate diff, if triggered again
-									if (animationActive) {
-										// forward
-										if (staticLastTrack < gPlayProperties.currentTrackNumber) {
-											if (animationIndex > 1) {
-												animationIndex = 1;
-												subAnimationIndex = staticLastBarLenghtPlaylist;
-											}
-										// backwards
-										} else if (staticLastTrack > gPlayProperties.currentTrackNumber) {
-											if (staticLastBarLenghtPlaylist < fullLeds) {
-												animationIndex = 1;
-												subAnimationIndex = staticLastBarLenghtPlaylist;
-											} else {
-												animationIndex = 42;
-												subAnimationIndex = staticLastBarLenghtPlaylist;
-											}
-										}
-									}
-									staticLastTrack = gPlayProperties.currentTrackNumber;
-								}
-
-								if (animationIndex == 0 ) {
-									animationActive = true;
-									subAnimationIndex = 0;
-									animationIndex++;
-								}
-
-								animaitonTimer = 30;
-								uint8_t barLength = 0;
-								switch (animationIndex) {
-									case 1:
-										barLength = subAnimationIndex;
-										if (subAnimationIndex >= fullLeds) {
-											animationIndex++;
-											subAnimationIndex = 0;
-										} else {
-											subAnimationIndex++;
-										}
-									break;
-									case 2:
-										// wait
-										subAnimationIndex ++;
-										if (subAnimationIndex >= 50) {
-											animationIndex++;
-											subAnimationIndex = fullLeds;
-										}
-										barLength = fullLeds;
-									break;
-									case 3:
-										// negative
-										barLength = subAnimationIndex;
-										if (subAnimationIndex == 0) {
-											animationIndex++;
-										} else {
-											subAnimationIndex--;
-										}
-									break;
-									case 42:
-										// move back to target and wait there
-										barLength = subAnimationIndex;
-										if (subAnimationIndex <= fullLeds) {
-											animationIndex = 2;
-										} else {
-											subAnimationIndex--;
-										}
-									break;
-									default:
-										// done
-										animationActive = false;
-									break;
-								}
-
-								// draw bar
-								FastLED.clear();
-								for (uint8_t i = 0; i < barLength; i++) {
-									leds[Led_Address(i)] = CRGB::Blue;
-								}
-								if (barLength == fullLeds && lastLed > 0) {
-									leds[Led_Address(barLength)] = Led_DimColor(CRGB::Blue, lastLed);
-								}
-								staticLastBarLenghtPlaylist = barLength;
-								FastLED.show();
-							}
-						}
+						AnimationReturnType ret = Animation_PlaylistProgress(startNewAnimation, leds);
+						animationActive = ret.animationActive;
+						animaitonTimer = ret.animationDelay;
 					} break;
 
 					// --------------------------------------------------
@@ -840,5 +755,123 @@ void Led_SetButtonLedsEnabled(boolean value) {
 			vTaskDelay(portTICK_RATE_MS * taskDelay);
 		}
 		vTaskDelete(NULL);
+	}
+#endif
+
+// each function has to be non-blocking.
+// all states are kept in this function.
+// all funcitons return the desired delay and if they are still active
+
+#ifdef NEOPIXEL_ENABLE
+	AnimationReturnType Animation_PlaylistProgress(bool startNewAnimation, CRGB* leds){
+		static bool animationActive = false; // signals if the animation is currently active
+		int32_t animationDelay = 0;
+
+		// static variables for animation
+		static LedPlaylistProgressStates animationState = LedPlaylistProgressStates::Done; // Statemachine-variable of this animation
+		static uint32_t animationCounter = 0; // counter-variable to loop through leds or to wait 
+		static uint32_t staticLastBarLenghtPlaylist = 0; // variable to remember the last length of the progress-bar (for connecting animations)
+		static uint32_t staticLastTrack = 0; // variable to remember the last track (for connecting animations)
+
+		if (NUM_LEDS >= 4) {
+			if (gPlayProperties.numberOfTracks > 1 && gPlayProperties.currentTrackNumber < gPlayProperties.numberOfTracks) {
+				const uint32_t ledValue =  map(gPlayProperties.currentTrackNumber, 0, gPlayProperties.numberOfTracks - 1, 0, NUM_LEDS * DIMMABLE_STATES);
+				const uint8_t fullLeds = ledValue / DIMMABLE_STATES;
+				const uint8_t lastLed = ledValue % DIMMABLE_STATES;
+
+				if (LED_INDICATOR_IS_SET(LedIndicatorType::PlaylistProgress)) {
+					LED_INDICATOR_CLEAR(LedIndicatorType::PlaylistProgress);
+					// check if we need to animate a transition between from an already running animation
+					// only animate diff, if triggered again
+					if (!startNewAnimation) {
+						// forward progress
+						if (staticLastTrack < gPlayProperties.currentTrackNumber) {
+							if (animationState > LedPlaylistProgressStates::FillBar) {
+								animationState = LedPlaylistProgressStates::FillBar;
+								animationCounter = staticLastBarLenghtPlaylist;
+							}
+						// backwards progress
+						} else if (staticLastTrack > gPlayProperties.currentTrackNumber) {
+							if (staticLastBarLenghtPlaylist < fullLeds) {
+								animationState = LedPlaylistProgressStates::FillBar;
+								animationCounter = staticLastBarLenghtPlaylist;
+							} else {
+								animationState = LedPlaylistProgressStates::EmptyBarToTarget;
+								animationCounter = staticLastBarLenghtPlaylist;
+							}
+						}
+					}
+					staticLastTrack = gPlayProperties.currentTrackNumber;
+				}
+
+				if (startNewAnimation) {
+					animationActive = true;
+					animationCounter = 0;
+					animationState = LedPlaylistProgressStates::FillBar;
+				}
+
+				animationDelay = 30;
+				uint8_t barLength = 0;
+				switch (animationState) {
+					case LedPlaylistProgressStates::FillBar:
+						barLength = animationCounter;
+						if (animationCounter >= fullLeds) {
+							animationState = LedPlaylistProgressStates::Wait;
+							animationCounter = 0;
+						} else {
+							animationCounter++;
+						}
+					break;
+					case LedPlaylistProgressStates::Wait:
+						// wait
+						animationCounter ++;
+						if (animationCounter >= 50) {
+							animationState = LedPlaylistProgressStates::EmptyBar;
+							animationCounter = fullLeds;
+						}
+						barLength = fullLeds;
+					break;
+					case LedPlaylistProgressStates::EmptyBar:
+						// negative
+						barLength = animationCounter;
+						if (animationCounter == 0) {
+							animationState = LedPlaylistProgressStates::Done;
+						} else {
+							animationCounter--;
+						}
+					break;
+					case LedPlaylistProgressStates::EmptyBarToTarget:
+						// move back to target and wait there
+						barLength = animationCounter;
+						if (animationCounter <= fullLeds) {
+							animationState = LedPlaylistProgressStates::Wait;
+							animationCounter = 0;
+						} else {
+							animationCounter--;
+						}
+					break;
+					default:
+						// done
+						animationActive = false;
+					break;
+				}
+
+				// draw bar
+				FastLED.clear();
+				for (uint8_t i = 0; i < barLength; i++) {
+					leds[Led_Address(i)] = CRGB::Blue;
+				}
+				if (barLength == fullLeds && lastLed > 0) {
+					leds[Led_Address(barLength)] = Led_DimColor(CRGB::Blue, lastLed);
+				}
+				staticLastBarLenghtPlaylist = barLength;
+				FastLED.show();
+			}
+		} else {
+			// nothing to show. Just clear indicator
+			LED_INDICATOR_CLEAR(LedIndicatorType::PlaylistProgress);
+		}
+		
+		return AnimationReturnType(animationActive, animationDelay);
 	}
 #endif
