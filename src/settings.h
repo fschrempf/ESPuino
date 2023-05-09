@@ -47,9 +47,9 @@
 	//#define PLAY_LAST_RFID_AFTER_REBOOT   // When restarting ESPuino, the last RFID that was active before, is recalled and played
 	//#define USE_LAST_VOLUME_AFTER_REBOOT  // Remembers the volume used at last shutdown after reboot
 	#define USEROTARY_ENABLE                // If rotary-encoder is used (don't forget to review WAKEUP_BUTTON if you disable this feature!)
-	#define BLUETOOTH_ENABLE                // If enabled and bluetooth-mode is active, you can stream to your ESPuino via bluetooth (a2dp-sink).
+	#define BLUETOOTH_ENABLE                // If enabled and bluetooth-mode is active, you can stream to your ESPuino or to a headset via bluetooth (a2dp-sink & a2dp-source). Note: This feature consumes a lot of resources and the available flash/ram might not be sufficient. 
 	//#define IR_CONTROL_ENABLE             // Enables remote control (https://forum.espuino.de/t/neues-feature-fernsteuerung-per-infrarot-fernbedienung/265)
-	#define CACHED_PLAYLIST_ENABLE          // Enables playlist-caching (infos: https://forum.espuino.de/t/neues-feature-cached-playlist/515)
+	//#define CACHED_PLAYLIST_ENABLE          // Enables playlist-caching (infos: https://forum.espuino.de/t/neues-feature-cached-playlist/515). This might be slower than uncached file listing (https://forum.espuino.de/t/beschleunigte-verzeichnisauflistung-bei-sehr-vielen-mp3s/1348/20)
 	//#define PAUSE_WHEN_RFID_REMOVED       // Playback starts when card is applied and pauses automatically, when card is removed (https://forum.espuino.de/t/neues-feature-pausieren-wenn-rfid-karte-entfernt-wurde/541)
 	//#define PAUSE_ON_MIN_VOLUME           // When playback is active and volume is changed to zero, playback is paused automatically. Playback is continued if volume reaches 1. (https://forum.espuino.de/t/neues-feature-pausieren-wenn-rfid-karte-entfernt-wurde/541)
 	//#define DONT_ACCEPT_SAME_RFID_TWICE   // RFID-reader doesn't accept the same RFID-tag twice in a row (unless it's a modification-card or RFID-tag is unknown in NVS). Flag will be ignored silently if PAUSE_WHEN_RFID_REMOVED is active. (https://forum.espuino.de/t/neues-feature-dont-accept-same-rfid-twice/1247)
@@ -164,7 +164,15 @@
 	// Buttons (better leave unchanged if in doubts :-))
 	constexpr uint8_t buttonDebounceInterval = 50;                // Interval in ms to software-debounce buttons
 	constexpr uint16_t intervalToLongPress = 700;                 // Interval in ms to distinguish between short and long press of buttons
-
+	
+	// Buttons active state: Default 0 for active LOW, 1 for active HIGH e.g. for TTP223 Capacitive Touch Switch Button (FinnBox)
+	#define BUTTON_0_ACTIVE_STATE 0
+	#define BUTTON_1_ACTIVE_STATE 0
+	#define BUTTON_2_ACTIVE_STATE 0
+	#define BUTTON_3_ACTIVE_STATE 0
+	#define BUTTON_4_ACTIVE_STATE 0
+	#define BUTTON_5_ACTIVE_STATE 0
+	
 	//#define CONTROLS_LOCKED_BY_DEFAULT			// If set the controls are locked at boot
 	#define INCLUDE_ROTARY_IN_CONTROLS_LOCK			// If set the rotary encoder is locked if controls are locked
 
@@ -181,29 +189,31 @@
 	// Default user/password is esp32/esp32 but can be changed via webgui
 
 	// ESPuino will create a WiFi if joing existing WiFi was not possible. Name and password can be configured here.
-	constexpr const char accessPointNetworkSSID[] PROGMEM = "ESPuino";     // Access-point's SSID
-	constexpr const char accessPointNetworkPassword[] PROGMEM = "";        // Access-point's Password, at least 8 characters! Set to an empty string to spawn an open WiFi.
+	constexpr const char accessPointNetworkSSID[] = "ESPuino";     // Access-point's SSID
+	constexpr const char accessPointNetworkPassword[] = "";        // Access-point's Password, at least 8 characters! Set to an empty string to spawn an open WiFi.
 
 	// Bluetooth
-	constexpr const char nameBluetoothSinkDevice[] PROGMEM = "ESPuino";        // Name of your ESPuino as Bluetooth-device
-	constexpr const char nameBluetoothSourceDevice[] PROGMEM = "My POGS Wireless Headphone"; // Name of Bluetooth-device to connect to (BT-Headset name) (https://forum.espuino.de/t/neues-feature-bluetooth-kopfhoerer/1293/)
+	constexpr const char nameBluetoothSinkDevice[] = "ESPuino";        // Name of your ESPuino as Bluetooth-device
+	constexpr const char nameBluetoothSourceDevice[] = "My POGS Wireless Headphone"; // Name of Bluetooth-device to connect to (BT-Headset name) (https://forum.espuino.de/t/neues-feature-bluetooth-kopfhoerer/1293/)
 
 	// Where to store the backup-file for NVS-records
-	constexpr const char backupFile[] PROGMEM = "/backup.txt"; // File is written every time a (new) RFID-assignment via GUI is done
+	constexpr const char backupFile[] = "/backup.txt"; // File is written every time a (new) RFID-assignment via GUI is done
 	// Filename that is used for caching playlists
 	// Arduino 1.0.6 uses ANSI / Arduino >=2.0.5 UTF-8 encoding. Use different filenames to avoid incompabilities
 	#if ESP_ARDUINO_VERSION_MAJOR >= 2
-		constexpr const char playlistCacheFile[] PROGMEM = "playlistcache2.csv";
+		constexpr const char playlistCacheFile[] = "playlistcache2.csv"; 
 	#else
-		constexpr const char playlistCacheFile[] PROGMEM = "playlistcache.csv";
+		constexpr const char playlistCacheFile[] = "playlistcache.csv";  
 	#endif
 
 	//#################### Settings for optional Modules##############################
 	// (optinal) Neopixel
 	#ifdef NEOPIXEL_ENABLE
-		#define NUM_LEDS			24          	// number of LEDs
-		#define CHIPSET				WS2812B     	// type of Neopixel
-		#define COLOR_ORDER			GRB
+		#define NUM_INDICATOR_LEDS		24          	// number of Neopixel LEDs (formerly NUM_LEDS)
+		#define NUM_CONTROL_LEDS		0		// optional control leds (https://forum.espuino.de/t/statische-ws2812-leds/1703)
+                #define CONTROL_LEDS_COLORS		{}		// Colors for the control LEDs. Make sure it lists at least NUM_CONTROL_LEDS colors, e.g. for three control LEDs define: CONTROL_LEDS_COLORS {CRGB::Yellow, CRGB::Blue, 0xFFFFFF} (predefined colors: http://fastled.io/docs/3.1/struct_c_r_g_b.html)
+		#define CHIPSET					WS2812B     	// type of Neopixel
+		#define COLOR_ORDER				GRB
 		#define NUM_LEDS_IDLE_DOTS		4           	// count of LEDs, which are shown when Idle
 		#define OFFSET_PAUSE_LEDS		false		// if true the pause-leds are centered in the mid of the LED-Strip
 		#define PROGRESS_HUE_START		85          	// Start and end hue of mulitple-LED progress indicator. Hue ranges from basically 0 - 255, but you can also set numbers outside this range to get the desired effect (e.g. 85-215 will go from green to purple via blue, 341-215 start and end at exactly the same color but go from green to purple via yellow and red)
@@ -255,31 +265,31 @@
 		constexpr uint16_t mqttRetryInterval = 60;                // Try to reconnect to MQTT-server every (n) seconds if connection is broken
 		constexpr uint8_t mqttMaxRetriesPerInterval = 1;          // Number of retries per time-interval (mqttRetryInterval). mqttRetryInterval 60 / mqttMaxRetriesPerInterval 1 => once every 60s
 		#define DEVICE_HOSTNAME "ESP32-ESPuino"         // Name that is used for MQTT
-		constexpr const char topicSleepCmnd[] PROGMEM = "Cmnd/ESPuino/Sleep";
-		constexpr const char topicSleepState[] PROGMEM = "State/ESPuino/Sleep";
-		constexpr const char topicRfidCmnd[] PROGMEM = "Cmnd/ESPuino/Rfid";
-		constexpr const char topicRfidState[] PROGMEM = "State/ESPuino/Rfid";
-		constexpr const char topicTrackState[] PROGMEM = "State/ESPuino/Track";
-		constexpr const char topicTrackControlCmnd[] PROGMEM = "Cmnd/ESPuino/TrackControl";
-		constexpr const char topicCoverChangedState[] PROGMEM = "State/ESPuino/CoverChanged";
-		constexpr const char topicLoudnessCmnd[] PROGMEM = "Cmnd/ESPuino/Loudness";
-		constexpr const char topicLoudnessState[] PROGMEM = "State/ESPuino/Loudness";
-		constexpr const char topicSleepTimerCmnd[] PROGMEM = "Cmnd/ESPuino/SleepTimer";
-		constexpr const char topicSleepTimerState[] PROGMEM = "State/ESPuino/SleepTimer";
-		constexpr const char topicState[] PROGMEM = "State/ESPuino/State";
-		constexpr const char topicCurrentIPv4IP[] PROGMEM = "State/ESPuino/IPv4";
-		constexpr const char topicLockControlsCmnd[] PROGMEM ="Cmnd/ESPuino/LockControls";
-		constexpr const char topicLockControlsState[] PROGMEM ="State/ESPuino/LockControls";
-		constexpr const char topicPlaymodeState[] PROGMEM = "State/ESPuino/Playmode";
-		constexpr const char topicRepeatModeCmnd[] PROGMEM = "Cmnd/ESPuino/RepeatMode";
-		constexpr const char topicRepeatModeState[] PROGMEM = "State/ESPuino/RepeatMode";
-		constexpr const char topicLedBrightnessCmnd[] PROGMEM = "Cmnd/ESPuino/LedBrightness";
-		constexpr const char topicLedBrightnessState[] PROGMEM = "State/ESPuino/LedBrightness";
-		constexpr const char topicWiFiRssiState[] PROGMEM = "State/ESPuino/WifiRssi";
-		constexpr const char topicSRevisionState[] PROGMEM = "State/ESPuino/SoftwareRevision";
+		constexpr const char topicSleepCmnd[] = "Cmnd/ESPuino/Sleep";
+		constexpr const char topicSleepState[] = "State/ESPuino/Sleep";
+		constexpr const char topicRfidCmnd[] = "Cmnd/ESPuino/Rfid";
+		constexpr const char topicRfidState[] = "State/ESPuino/Rfid";
+		constexpr const char topicTrackState[] = "State/ESPuino/Track";
+		constexpr const char topicTrackControlCmnd[] = "Cmnd/ESPuino/TrackControl";
+		constexpr const char topicCoverChangedState[] = "State/ESPuino/CoverChanged";
+		constexpr const char topicLoudnessCmnd[] = "Cmnd/ESPuino/Loudness";
+		constexpr const char topicLoudnessState[] = "State/ESPuino/Loudness";
+		constexpr const char topicSleepTimerCmnd[] = "Cmnd/ESPuino/SleepTimer";
+		constexpr const char topicSleepTimerState[] = "State/ESPuino/SleepTimer";
+		constexpr const char topicState[] = "State/ESPuino/State";
+		constexpr const char topicCurrentIPv4IP[] = "State/ESPuino/IPv4";
+		constexpr const char topicLockControlsCmnd[] ="Cmnd/ESPuino/LockControls";
+		constexpr const char topicLockControlsState[] ="State/ESPuino/LockControls";
+		constexpr const char topicPlaymodeState[] = "State/ESPuino/Playmode";
+		constexpr const char topicRepeatModeCmnd[] = "Cmnd/ESPuino/RepeatMode";
+		constexpr const char topicRepeatModeState[] = "State/ESPuino/RepeatMode";
+		constexpr const char topicLedBrightnessCmnd[] = "Cmnd/ESPuino/LedBrightness";
+		constexpr const char topicLedBrightnessState[] = "State/ESPuino/LedBrightness";
+		constexpr const char topicWiFiRssiState[] = "State/ESPuino/WifiRssi";
+		constexpr const char topicSRevisionState[] = "State/ESPuino/SoftwareRevision";
 		#ifdef BATTERY_MEASURE_ENABLE
-		constexpr const char topicBatteryVoltage[] PROGMEM = "State/ESPuino/Voltage";
-		constexpr const char topicBatterySOC[] PROGMEM     = "State/ESPuino/Battery";
+		constexpr const char topicBatteryVoltage[] = "State/ESPuino/Voltage";
+		constexpr const char topicBatterySOC[]     = "State/ESPuino/Battery";
 		#endif
 	#endif
 

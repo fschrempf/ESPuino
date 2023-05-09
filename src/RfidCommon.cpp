@@ -17,9 +17,14 @@ char gCurrentRfidTagId[cardIdStringSize] = ""; // No crap here as otherwise it c
 	char gOldRfidTagId[cardIdStringSize] = "X";     // Init with crap
 #endif
 
+// check if we have RFID-reader enabled
+#if defined (RFID_READER_TYPE_MFRC522_SPI) || defined (RFID_READER_TYPE_MFRC522_I2C) || defined(RFID_READER_TYPE_PN5180)
+	#define RFID_READER_ENABLED 1
+#endif
+
 // Tries to lookup RFID-tag-string in NVS and extracts parameter from it if found
 void Rfid_PreferenceLookupHandler(void) {
-	#if defined (RFID_READER_TYPE_MFRC522_SPI) || defined (RFID_READER_TYPE_MFRC522_I2C) || defined(RFID_READER_TYPE_PN5180)
+	#if defined (RFID_READER_ENABLED)
 		BaseType_t rfidStatus;
 		char rfidTagId[cardIdStringSize];
 		char _file[255];
@@ -31,12 +36,12 @@ void Rfid_PreferenceLookupHandler(void) {
 		if (rfidStatus == pdPASS) {
 			System_UpdateActivityTimer();
 			strncpy(gCurrentRfidTagId, rfidTagId, cardIdStringSize-1);
-			Log_Printf(LOGLEVEL_INFO, "%s: %s", (char *) FPSTR(rfidTagReceived), gCurrentRfidTagId);
+			Log_Printf(LOGLEVEL_INFO, "%s: %s", rfidTagReceived, gCurrentRfidTagId);
 			Web_SendWebsocketData(0, 10); // Push new rfidTagId to all websocket-clients
 
 			String s = gPrefsRfid.getString(gCurrentRfidTagId, "-1"); // Try to lookup rfidId in NVS
 			if (!s.compareTo("-1")) {
-				Log_Println((char *) FPSTR(rfidTagUnknownInNvs), LOGLEVEL_ERROR);
+				Log_Println(rfidTagUnknownInNvs, LOGLEVEL_ERROR);
 				System_IndicateError();
 				#ifdef DONT_ACCEPT_SAME_RFID_TWICE_ENABLE
 					strncpy(gOldRfidTagId, gCurrentRfidTagId, cardIdStringSize-1);      // Even if not found in NVS: accept it as card last applied
@@ -64,7 +69,7 @@ void Rfid_PreferenceLookupHandler(void) {
 			}
 
 			if (i != 5) {
-				Log_Println((char *) FPSTR(errorOccuredNvs), LOGLEVEL_ERROR);
+				Log_Println(errorOccuredNvs, LOGLEVEL_ERROR);
 				System_IndicateError();
 			} else {
 				// Only pass file to queue if strtok revealed 3 items
@@ -82,7 +87,7 @@ void Rfid_PreferenceLookupHandler(void) {
 						}
 					#endif
 					#ifdef MQTT_ENABLE
-						publishMqtt((char *) FPSTR(topicRfidState), gCurrentRfidTagId, false);
+						publishMqtt(topicRfidState, gCurrentRfidTagId, false);
 					#endif
 
 					#ifdef BLUETOOTH_ENABLE
@@ -98,3 +103,19 @@ void Rfid_PreferenceLookupHandler(void) {
 		}
 	#endif
 }
+
+#if defined (RFID_READER_ENABLED)
+	extern TaskHandle_t rfidTaskHandle;
+#endif
+
+void Rfid_TaskPause(void) {
+	#if defined (RFID_READER_ENABLED)
+		vTaskSuspend(rfidTaskHandle);
+	#endif
+}
+void Rfid_TaskResume(void) {
+	#if defined (RFID_READER_ENABLED)
+		vTaskResume(rfidTaskHandle);
+	#endif
+}
+
