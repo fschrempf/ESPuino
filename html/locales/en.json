@@ -24,6 +24,8 @@
     },
     "wifi": {
         "title": "WiFi-configuration",
+        "networks": "Networks",
+        "savedNetworks": "Saved Networks",
         "ssid": {
             "title": "WiFi-name (SSID)",
             "placeholder": "SSID",
@@ -38,6 +40,14 @@
             "title": "ESPuino's name (hostname)",
             "placeholder": "espuino",
             "validation": "Enter a valid hostname"
+        },
+        "static": {
+            "addr": "Static IP-Address",
+            "enabled": "Static IP-Configuration",
+            "gateway": "Gateway for static IP-Configuration",
+            "subnet": "Subnet-mask for static IP-Configuration",
+            "dns1": " DNS 1 for static IP-Configuration",
+            "dns2": "DNS 2 for static IP-Configuration"
         },
         "restartPrompt": "Ready to go?"
     },
