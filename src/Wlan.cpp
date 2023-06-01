@@ -92,10 +92,10 @@ void Wlan_Init(void) {
 		networkSettings.use_static_ip = false;
 
 		#ifdef STATIC_IP_ENABLE
-			networkSettings.static_addr = IPAddress(LOCAL_IP);
-			networkSettings.static_gateway = IPAddress(GATEWAY_IP);
-			networkSettings.static_subnet = IPAddress(SUBNET_IP);
-			networkSettings.static_dns1 = IPAddress(DNS_IP);
+			networkSettings.static_addr = (uint32_t) IPAddress(LOCAL_IP);
+			networkSettings.static_gateway = (uint32_t) IPAddress(GATEWAY_IP);
+			networkSettings.static_subnet = (uint32_t) IPAddress(SUBNET_IP);
+			networkSettings.static_dns1 = (uint32_t) IPAddress(DNS_IP);
 			networkSettings.use_static_ip = true;
 		#endif
 
@@ -133,7 +133,12 @@ void connectToKnownNetwork(WiFiSettings settings) {
 
 	if (settings.use_static_ip) {
 		Log_Println(tryStaticIpConfig, LOGLEVEL_NOTICE);
-		if (!WiFi.config(settings.static_addr, settings.static_gateway, settings.static_subnet, settings.static_dns1, settings.static_dns2)) {
+		if (!WiFi.config(
+			    IPAddress(settings.static_addr),
+				IPAddress(settings.static_gateway), 
+				IPAddress(settings.static_subnet), 
+				IPAddress(settings.static_dns1), 
+				IPAddress(settings.static_dns2))) {
 			Log_Println(staticIPConfigFailed, LOGLEVEL_ERROR);
 		}
 	}
@@ -227,7 +232,7 @@ void handleWifiStateScanConnect() {
 
 	if (connectStartTimestamp == 0) {
 		for (int i = 0; i < wifiScanCompleteResult; ++i) {
-			Log_Printf(LOGLEVEL_NOTICE, wifiScanResult, WiFi.SSID(i).c_str(), WiFi.RSSI(i), WiFi.channel(i));
+			Log_Printf(LOGLEVEL_NOTICE, wifiScanResult, WiFi.SSID(i).c_str(), WiFi.RSSI(i), WiFi.channel(i), WiFi.BSSIDstr(i).c_str());
 		}
 	} else {		
 		if (millis() - connectStartTimestamp < 5000) {
@@ -271,10 +276,11 @@ static bool initialStart = true;
 void handleWifiStateConnectionSuccess() {
 	initialStart = false;
 	IPAddress myIP = WiFi.localIP();
+	String mySSID = Wlan_GetCurrentSSID();
 
+	Log_Printf(LOGLEVEL_NOTICE, wifiConnectionSuccess, mySSID.c_str(), WiFi.RSSI(), WiFi.channel(), WiFi.BSSIDstr().c_str());
 	Log_Printf(LOGLEVEL_NOTICE, wifiCurrentIp, myIP.toString().c_str());
 
-	String mySSID = Wlan_GetCurrentSSID();
 	if (!gPrefsSettings.getString("LAST_SSID").equals(mySSID)) {
 		Log_Printf(LOGLEVEL_INFO, wifiSetLastSSID, mySSID.c_str());
 		gPrefsSettings.putString("LAST_SSID", mySSID);
@@ -306,6 +312,7 @@ void handleWifiStateConnectionSuccess() {
 }
 
 static uint32_t lastPrintRssiTimestamp = 0;
+static int8_t lastRssiValue = 0;
 void handleWifiStateConnected() {
 	switch (WiFi.status()) {
 		case WL_CONNECTED:
@@ -324,7 +331,11 @@ void handleWifiStateConnected() {
 
 	if (millis() - lastPrintRssiTimestamp >= 60000) {
 		lastPrintRssiTimestamp = millis();
-		Log_Printf(LOGLEVEL_DEBUG, "RSSI: %d dBm", Wlan_GetRssi());
+		// show RSSI value only if it has changed by > 3 dBm
+		if (abs(lastRssiValue - Wlan_GetRssi()) > 3) {
+			Log_Printf(LOGLEVEL_DEBUG, "RSSI: %d dBm", Wlan_GetRssi());
+			lastRssiValue = Wlan_GetRssi();
+		}
 	}
 }
 
@@ -457,7 +468,7 @@ const String Wlan_GetCurrentSSID() {
 }
 
 const String Wlan_GetHostname() {
-	return gPrefsSettings.getString("Hostname", "");
+	return gPrefsSettings.getString("Hostname", "ESPuino");
 }
 
 bool Wlan_DeleteNetwork(String ssid) {
@@ -470,7 +481,14 @@ bool Wlan_DeleteNetwork(String ssid) {
 			std::copy(&knownNetworks[i+1], &knownNetworks[numKnownNetworks], &knownNetworks[i]);
 			numKnownNetworks--;
 
-			gPrefsSettings.putBytes(nvsWiFiNetworksKey, knownNetworks, numKnownNetworks * sizeof(WiFiSettings));
+			size_t new_length = numKnownNetworks * sizeof(WiFiSettings);
+
+			if (new_length == 0) {
+				gPrefsSettings.remove(nvsWiFiNetworksKey);
+			} else {
+				gPrefsSettings.putBytes(nvsWiFiNetworksKey, knownNetworks, new_length);
+			}
+
 			return true;
 		}
 	}
