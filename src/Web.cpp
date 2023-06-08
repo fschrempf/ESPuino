@@ -867,7 +867,7 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 
 		// Create Ringbuffer for upload
 		if (explorerFileUploadRingBuffer == NULL) {
-			explorerFileUploadRingBuffer = xRingbufferCreate(16384, RINGBUF_TYPE_BYTEBUF);
+			explorerFileUploadRingBuffer = xRingbufferCreate(8192, RINGBUF_TYPE_BYTEBUF);
 		}
 
 		// Create Queue for receiving a signal from the store task as synchronisation
@@ -933,14 +933,13 @@ void explorerHandleFileStorageTask(void *parameter) {
 	BaseType_t uploadFileNotification;
 	uint32_t uploadFileNotificationValue;
 	uploadFile = gFSystem.open((char *)parameter, "w");
-	Log_Println("open uploadFile for storage", LOGLEVEL_INFO);
 
 	// pause some tasks to get more free CPU time for the upload
 	vTaskSuspend(AudioTaskHandle);
 	Led_TaskPause(); 
 	Rfid_TaskPause();
 	size_t max_size = xRingbufferGetMaxItemSize(explorerFileUploadRingBuffer);
-	size_t chunk_size = 4096;
+	size_t chunk_size = 2048;
 
 	for (;;) {
 		// check buffer is full with enough data or all data already sent
@@ -965,7 +964,6 @@ void explorerHandleFileStorageTask(void *parameter) {
 					bytesOk += item_size;
 					vRingbufferReturnItem(explorerFileUploadRingBuffer, (void *)item);
 				}
-				// Serial.printf("write %d bytes to storage\n", item_size);
 				lastUpdateTimestamp = millis();
 			}
 
@@ -1343,7 +1341,6 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 	static size_t fileIndex = 0;
 	static char tmpFileName[13];
 	esp_task_wdt_reset();
-	Log_Println("open or seek tempFile for upload", LOGLEVEL_INFO);
 	if (!index) {
 		snprintf(tmpFileName, 13, "/_%lu", millis());
 		tmpFile = gFSystem.open(tmpFileName, FILE_WRITE);
@@ -1357,7 +1354,6 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 	}
 
 	size_t wrote = tmpFile.write(data, len);
-	Log_Println("write tempFile for upload", LOGLEVEL_INFO);
 	if(wrote != len) {
 		// we did not write all bytes --> fail
 		Log_Printf(LOGLEVEL_ERROR, "Error writing %s. Expected %u, wrote %u (error: %u)!", tmpFile.path(), len, wrote, tmpFile.getWriteError());
@@ -1383,7 +1379,6 @@ void Web_DumpSdToNvs(const char *_filename) {
 	nvs_t nvsEntry[1];
 	char buf;
 	File tmpFile = gFSystem.open(_filename);
-	Log_Println("Open tmpFile for Dump SD to NVS", LOGLEVEL_INFO);
 
 	if (!tmpFile) {
 		Log_Println(errorReadingTmpfile, LOGLEVEL_ERROR);
@@ -1424,7 +1419,6 @@ void Web_DumpSdToNvs(const char *_filename) {
 	Log_Printf(LOGLEVEL_NOTICE, importCountNokNvs, invalidCount);
 	tmpFile.close();
 	gFSystem.remove(_filename);
-	Log_Println("Close tmpFile for Dump SD to NVS", LOGLEVEL_INFO);
 }
 
 // Dumps all RFID-entries from NVS into a file on SD-card
@@ -1453,7 +1447,6 @@ bool Web_DumpNvsToSd(const char *_namespace, const char *_destFile) {
 	}
 	namespace_ID = FindNsID(nvs, _namespace); // Find ID of our namespace in NVS
 	File backupFile = gFSystem.open(_destFile, FILE_WRITE);
-	Log_Println("open backupfile for NVMS to SD", LOGLEVEL_INFO);
 	if (!backupFile) {
 		return false;
 	}
