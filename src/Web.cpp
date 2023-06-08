@@ -876,7 +876,7 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 			explorerFileUploadStatusQueue = xQueueCreate(1, sizeof(uint8_t));
 		}
 		if (storeDateQueue == NULL) {
-			storeDateQueue = xQueueCreate(2, sizeof(uint8_t));
+			storeDateQueue = xQueueCreate(1, sizeof(uint8_t));
 		}
 
 		// Create Task for handling the storage of the data
@@ -891,51 +891,13 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 		);
 	}
 
-	// if (len) {
-	// 	// stream the incoming chunk to the ringbuffer
-	// 	xRingbufferSend(explorerFileUploadRingBuffer, data, len, portTICK_PERIOD_MS * 1000);
-	// }
-
-	uint8_t value = 0;
-	uint32_t offset = 0;
-	while (len > 0) {
+	if (len) {
 		// stream the incoming chunk to the ringbuffer
-		size_t max_size = xRingbufferGetMaxItemSize(explorerFileUploadRingBuffer);
-		size_t free_space = xRingbufferGetCurFreeSize(explorerFileUploadRingBuffer);
-		size_t target_size = max_size/2;
-		free_space -= target_size;
-		if (len <= free_space){
-			xRingbufferSend(explorerFileUploadRingBuffer, data + offset, len, portTICK_PERIOD_MS * 1000);
-			if (len == free_space) {
-				xQueueSend(storeDateQueue, &value, 0);
-				Serial.printf("notify to store\n");
-			}
-			//Serial.printf("write %d bytes to empty buffer\n", len);
-			offset += len;
-			len = 0;
-		} else if (len > free_space && free_space > 0){
-			xRingbufferSend(explorerFileUploadRingBuffer, data + offset, free_space, portTICK_PERIOD_MS * 1000);
-			xQueueSend(storeDateQueue, &value, 0);
-			Serial.printf("write %d bytes to spare buffer\n", free_space);
-			Serial.printf("notify to store\n");
-			offset += free_space;
-			len -= free_space;
-		} else {
-			size_t size_to_send = 0;
-			if (len > max_size){
-				size_to_send = max_size;
-			} else{
-				size_to_send = len;
-			}
-			xRingbufferSend(explorerFileUploadRingBuffer, data + offset, size_to_send, portTICK_PERIOD_MS * 1000);
-			Serial.printf("write %d bytes to full buffer\n", size_to_send);
-			len -= size_to_send;
-			offset += size_to_send;
-		}
-	} 
+		xRingbufferSend(explorerFileUploadRingBuffer, data, len, portTICK_PERIOD_MS * 1000);
+	}
 
 	if (final) {
-		value = 1;
+		uint8_t value = 1;
 		xQueueSend(storeDateQueue, &value, 0);
 		// notify storage task that last data was stored on the ring buffer
 		xTaskNotify(fileStorageTaskHandle, 1u, eNoAction);
@@ -983,13 +945,17 @@ void explorerHandleFileStorageTask(void *parameter) {
 	vTaskSuspend(AudioTaskHandle);
 	Led_TaskPause(); 
 	Rfid_TaskPause();
-	uint8_t signal;
+	uint8_t signal = 0;
+	size_t max_size = xRingbufferGetMaxItemSize(explorerFileUploadRingBuffer);
+	size_t chunk_size = 8192;
 
 	for (;;) {
 		// check buffer is full with enough data
-		if (xQueueReceive(storeDateQueue, &signal, portTICK_PERIOD_MS * 20u)) {
-
-			item = (uint8_t *)xRingbufferReceive(explorerFileUploadRingBuffer, &item_size, 0);
+		size_t free_space = xRingbufferGetCurFreeSize(explorerFileUploadRingBuffer);
+		size_t data_available = max_size - free_space;
+		if ((data_available >= chunk_size) || xQueueReceive(storeDateQueue, &signal, 0)) {
+			item = (uint8_t *)xRingbufferReceiveUpTo(explorerFileUploadRingBuffer, &item_size, 0, chunk_size);
+			// item = (uint8_t *)xRingbufferReceive(explorerFileUploadRingBuffer, &item_size, 0);
 
 			if (item != NULL) {
 				chunkCount++;
@@ -1000,7 +966,7 @@ void explorerHandleFileStorageTask(void *parameter) {
 					bytesOk += item_size;
 					vRingbufferReturnItem(explorerFileUploadRingBuffer, (void *)item);
 				}
-				Serial.printf("write %d bytes to storage\n", item_size);
+				// Serial.printf("write %d bytes to storage\n", item_size);
 				lastUpdateTimestamp = millis();
 			}
 			if (item == NULL || signal == 1){
@@ -1027,7 +993,8 @@ void explorerHandleFileStorageTask(void *parameter) {
 
 			}
 		} else {
-			feedTheDog();
+			vTaskDelay(portTICK_PERIOD_MS * 2);
+			continue;
 		}
 	}
 	// resume the paused tasks
