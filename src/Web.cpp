@@ -48,6 +48,7 @@ static bool webserverStarted = false;
 
 static RingbufHandle_t explorerFileUploadRingBuffer;
 static QueueHandle_t explorerFileUploadStatusQueue;
+static QueueHandle_t storeDateQueue;
 static TaskHandle_t fileStorageTaskHandle;
 
 void Web_DumpSdToNvs(const char *_filename);
@@ -867,12 +868,15 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 
 		// Create Ringbuffer for upload
 		if (explorerFileUploadRingBuffer == NULL) {
-			explorerFileUploadRingBuffer = xRingbufferCreate(8192, RINGBUF_TYPE_BYTEBUF);
+			explorerFileUploadRingBuffer = xRingbufferCreate(16384, RINGBUF_TYPE_BYTEBUF);
 		}
 
 		// Create Queue for receiving a signal from the store task as synchronisation
 		if (explorerFileUploadStatusQueue == NULL) {
 			explorerFileUploadStatusQueue = xQueueCreate(1, sizeof(uint8_t));
+		}
+		if (storeDateQueue == NULL) {
+			storeDateQueue = xQueueCreate(2, sizeof(uint8_t));
 		}
 
 		// Create Task for handling the storage of the data
@@ -887,12 +891,52 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 		);
 	}
 
-	if (len) {
+	// if (len) {
+	// 	// stream the incoming chunk to the ringbuffer
+	// 	xRingbufferSend(explorerFileUploadRingBuffer, data, len, portTICK_PERIOD_MS * 1000);
+	// }
+
+	uint8_t value = 0;
+	uint32_t offset = 0;
+	while (len > 0) {
 		// stream the incoming chunk to the ringbuffer
-		xRingbufferSend(explorerFileUploadRingBuffer, data, len, portTICK_PERIOD_MS * 1000);
-	}
+		size_t max_size = xRingbufferGetMaxItemSize(explorerFileUploadRingBuffer);
+		size_t free_space = xRingbufferGetCurFreeSize(explorerFileUploadRingBuffer);
+		size_t target_size = max_size/2;
+		free_space -= target_size;
+		if (len <= free_space){
+			xRingbufferSend(explorerFileUploadRingBuffer, data + offset, len, portTICK_PERIOD_MS * 1000);
+			if (len == free_space) {
+				xQueueSend(storeDateQueue, &value, 0);
+				Serial.printf("notify to store\n");
+			}
+			//Serial.printf("write %d bytes to empty buffer\n", len);
+			offset += len;
+			len = 0;
+		} else if (len > free_space && free_space > 0){
+			xRingbufferSend(explorerFileUploadRingBuffer, data + offset, free_space, portTICK_PERIOD_MS * 1000);
+			xQueueSend(storeDateQueue, &value, 0);
+			Serial.printf("write %d bytes to spare buffer\n", free_space);
+			Serial.printf("notify to store\n");
+			offset += free_space;
+			len -= free_space;
+		} else {
+			size_t size_to_send = 0;
+			if (len > max_size){
+				size_to_send = max_size;
+			} else{
+				size_to_send = len;
+			}
+			xRingbufferSend(explorerFileUploadRingBuffer, data + offset, size_to_send, portTICK_PERIOD_MS * 1000);
+			Serial.printf("write %d bytes to full buffer\n", size_to_send);
+			len -= size_to_send;
+			offset += size_to_send;
+		}
+	} 
 
 	if (final) {
+		value = 1;
+		xQueueSend(storeDateQueue, &value, 0);
 		// notify storage task that last data was stored on the ring buffer
 		xTaskNotify(fileStorageTaskHandle, 1u, eNoAction);
 		// watit until the storage task is sending the signal to finish
@@ -933,51 +977,58 @@ void explorerHandleFileStorageTask(void *parameter) {
 	BaseType_t uploadFileNotification;
 	uint32_t uploadFileNotificationValue;
 	uploadFile = gFSystem.open((char *)parameter, "w");
+	Log_Println("open uploadFile for storage", LOGLEVEL_INFO);
 
 	// pause some tasks to get more free CPU time for the upload
 	vTaskSuspend(AudioTaskHandle);
 	Led_TaskPause(); 
 	Rfid_TaskPause();
+	uint8_t signal;
 
 	for (;;) {
+		// check buffer is full with enough data
+		if (xQueueReceive(storeDateQueue, &signal, portTICK_PERIOD_MS * 20u)) {
 
-		item = (uint8_t *)xRingbufferReceive(explorerFileUploadRingBuffer, &item_size, portTICK_PERIOD_MS * 1u);
+			item = (uint8_t *)xRingbufferReceive(explorerFileUploadRingBuffer, &item_size, 0);
 
-		if (item != NULL) {
-			chunkCount++;
-			if (!uploadFile.write(item, item_size)) {
-				bytesNok += item_size;
-				feedTheDog();
-			} else {
-				bytesOk += item_size;
-				vRingbufferReturnItem(explorerFileUploadRingBuffer, (void *)item);
+			if (item != NULL) {
+				chunkCount++;
+				if (!uploadFile.write(item, item_size)) {
+					bytesNok += item_size;
+					feedTheDog();
+				} else {
+					bytesOk += item_size;
+					vRingbufferReturnItem(explorerFileUploadRingBuffer, (void *)item);
+				}
+				Serial.printf("write %d bytes to storage\n", item_size);
+				lastUpdateTimestamp = millis();
 			}
-			lastUpdateTimestamp = millis();
+			if (item == NULL || signal == 1){
+				// not enough data in the buffer, check if all data arrived for the file
+				uploadFileNotification = xTaskNotifyWait(0, 0, &uploadFileNotificationValue, 0);
+				if (uploadFileNotification == pdPASS) {
+					uploadFile.close();
+					Log_Printf(LOGLEVEL_INFO, fileWritten, (char *)parameter, bytesNok+bytesOk, (millis() - transferStartTimestamp), (bytesNok+bytesOk)/(millis() - transferStartTimestamp));
+					Log_Printf(LOGLEVEL_DEBUG, "Bytes [ok] %zu / [not ok] %zu, Chunks: %zu\n", bytesOk, bytesNok, chunkCount);
+					// done exit loop to terminate
+					break;
+				}
+
+				if (lastUpdateTimestamp + maxUploadDelay * 1000 < millis()) {
+					Log_Println(webTxCanceled, LOGLEVEL_ERROR);
+					// resume the paused tasks
+					Led_TaskResume();
+					vTaskResume(AudioTaskHandle);
+					Rfid_TaskResume();
+					// just delete task without signaling (abort)
+					vTaskDelete(NULL);
+					return;
+				}
+
+			}
 		} else {
-			// not enough data in the buffer, check if all data arrived for the file
-			uploadFileNotification = xTaskNotifyWait(0, 0, &uploadFileNotificationValue, 0);
-			if (uploadFileNotification == pdPASS) {
-				uploadFile.close();
-				Log_Printf(LOGLEVEL_INFO, fileWritten, (char *)parameter, bytesNok+bytesOk, (millis() - transferStartTimestamp), (bytesNok+bytesOk)/(millis() - transferStartTimestamp));
-				Log_Printf(LOGLEVEL_DEBUG, "Bytes [ok] %zu / [not ok] %zu, Chunks: %zu\n", bytesOk, bytesNok, chunkCount);
-				// done exit loop to terminate
-				break;
-			}
-
-			if (lastUpdateTimestamp + maxUploadDelay * 1000 < millis()) {
-				Log_Println(webTxCanceled, LOGLEVEL_ERROR);
-				// resume the paused tasks
-				Led_TaskResume();
-				vTaskResume(AudioTaskHandle);
-				Rfid_TaskResume();
-				// just delete task without signaling (abort)
-				vTaskDelete(NULL);
-				return;
-			}
-
+			feedTheDog();
 		}
-		// delay a bit to give the webtask some time fill the ringbuffer
-		vTaskDelay(1u);
 	}
 	// resume the paused tasks
 	Led_TaskResume();
@@ -1330,7 +1381,7 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 	static size_t fileIndex = 0;
 	static char tmpFileName[13];
 	esp_task_wdt_reset();
-
+	Log_Println("open or seek tempFile for upload", LOGLEVEL_INFO);
 	if (!index) {
 		snprintf(tmpFileName, 13, "/_%lu", millis());
 		tmpFile = gFSystem.open(tmpFileName, FILE_WRITE);
@@ -1344,6 +1395,7 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 	}
 
 	size_t wrote = tmpFile.write(data, len);
+	Log_Println("write tempFile for upload", LOGLEVEL_INFO);
 	if(wrote != len) {
 		// we did not write all bytes --> fail
 		Log_Printf(LOGLEVEL_ERROR, "Error writing %s. Expected %u, wrote %u (error: %u)!", tmpFile.path(), len, wrote, tmpFile.getWriteError());
@@ -1369,6 +1421,7 @@ void Web_DumpSdToNvs(const char *_filename) {
 	nvs_t nvsEntry[1];
 	char buf;
 	File tmpFile = gFSystem.open(_filename);
+	Log_Println("Open tmpFile for Dump SD to NVS", LOGLEVEL_INFO);
 
 	if (!tmpFile) {
 		Log_Println(errorReadingTmpfile, LOGLEVEL_ERROR);
@@ -1409,6 +1462,7 @@ void Web_DumpSdToNvs(const char *_filename) {
 	Log_Printf(LOGLEVEL_NOTICE, importCountNokNvs, invalidCount);
 	tmpFile.close();
 	gFSystem.remove(_filename);
+	Log_Println("Close tmpFile for Dump SD to NVS", LOGLEVEL_INFO);
 }
 
 // Dumps all RFID-entries from NVS into a file on SD-card
@@ -1437,6 +1491,7 @@ bool Web_DumpNvsToSd(const char *_namespace, const char *_destFile) {
 	}
 	namespace_ID = FindNsID(nvs, _namespace); // Find ID of our namespace in NVS
 	File backupFile = gFSystem.open(_destFile, FILE_WRITE);
+	Log_Println("open backupfile for NVMS to SD", LOGLEVEL_INFO);
 	if (!backupFile) {
 		return false;
 	}
