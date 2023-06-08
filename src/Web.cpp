@@ -48,7 +48,6 @@ static bool webserverStarted = false;
 
 static RingbufHandle_t explorerFileUploadRingBuffer;
 static QueueHandle_t explorerFileUploadStatusQueue;
-static QueueHandle_t storeDateQueue;
 static TaskHandle_t fileStorageTaskHandle;
 
 void Web_DumpSdToNvs(const char *_filename);
@@ -875,9 +874,6 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 		if (explorerFileUploadStatusQueue == NULL) {
 			explorerFileUploadStatusQueue = xQueueCreate(1, sizeof(uint8_t));
 		}
-		if (storeDateQueue == NULL) {
-			storeDateQueue = xQueueCreate(1, sizeof(uint8_t));
-		}
 
 		// Create Task for handling the storage of the data
 		xTaskCreatePinnedToCore(
@@ -897,8 +893,6 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 	}
 
 	if (final) {
-		uint8_t value = 1;
-		xQueueSend(storeDateQueue, &value, 0);
 		// notify storage task that last data was stored on the ring buffer
 		xTaskNotify(fileStorageTaskHandle, 1u, eNoAction);
 		// watit until the storage task is sending the signal to finish
@@ -945,17 +939,22 @@ void explorerHandleFileStorageTask(void *parameter) {
 	vTaskSuspend(AudioTaskHandle);
 	Led_TaskPause(); 
 	Rfid_TaskPause();
-	uint8_t signal = 0;
 	size_t max_size = xRingbufferGetMaxItemSize(explorerFileUploadRingBuffer);
-	size_t chunk_size = 8192;
+	size_t chunk_size = 4096;
 
 	for (;;) {
-		// check buffer is full with enough data
+		// check buffer is full with enough data or all data already sent
+		uploadFileNotification = xTaskNotifyWait(0, 0, &uploadFileNotificationValue, 0);
 		size_t free_space = xRingbufferGetCurFreeSize(explorerFileUploadRingBuffer);
 		size_t data_available = max_size - free_space;
-		if ((data_available >= chunk_size) || xQueueReceive(storeDateQueue, &signal, 0)) {
-			item = (uint8_t *)xRingbufferReceiveUpTo(explorerFileUploadRingBuffer, &item_size, 0, chunk_size);
-			// item = (uint8_t *)xRingbufferReceive(explorerFileUploadRingBuffer, &item_size, 0);
+		if ((data_available >= chunk_size) || (uploadFileNotification == pdPASS)) {
+			if (uploadFileNotification == pdPASS){
+				// if end of file, just write everything left
+				item = (uint8_t *)xRingbufferReceive(explorerFileUploadRingBuffer, &item_size, 0);
+			} else {
+				// only write one chunk
+				item = (uint8_t *)xRingbufferReceiveUpTo(explorerFileUploadRingBuffer, &item_size, 0, chunk_size);
+			}
 
 			if (item != NULL) {
 				chunkCount++;
@@ -969,31 +968,27 @@ void explorerHandleFileStorageTask(void *parameter) {
 				// Serial.printf("write %d bytes to storage\n", item_size);
 				lastUpdateTimestamp = millis();
 			}
-			if (item == NULL || signal == 1){
-				// not enough data in the buffer, check if all data arrived for the file
-				uploadFileNotification = xTaskNotifyWait(0, 0, &uploadFileNotificationValue, 0);
-				if (uploadFileNotification == pdPASS) {
-					uploadFile.close();
-					Log_Printf(LOGLEVEL_INFO, fileWritten, (char *)parameter, bytesNok+bytesOk, (millis() - transferStartTimestamp), (bytesNok+bytesOk)/(millis() - transferStartTimestamp));
-					Log_Printf(LOGLEVEL_DEBUG, "Bytes [ok] %zu / [not ok] %zu, Chunks: %zu\n", bytesOk, bytesNok, chunkCount);
-					// done exit loop to terminate
-					break;
-				}
 
-				if (lastUpdateTimestamp + maxUploadDelay * 1000 < millis()) {
-					Log_Println(webTxCanceled, LOGLEVEL_ERROR);
-					// resume the paused tasks
-					Led_TaskResume();
-					vTaskResume(AudioTaskHandle);
-					Rfid_TaskResume();
-					// just delete task without signaling (abort)
-					vTaskDelete(NULL);
-					return;
-				}
-
+			if (uploadFileNotification == pdPASS) {
+				uploadFile.close();
+				Log_Printf(LOGLEVEL_INFO, fileWritten, (char *)parameter, bytesNok+bytesOk, (millis() - transferStartTimestamp), (bytesNok+bytesOk)/(millis() - transferStartTimestamp));
+				Log_Printf(LOGLEVEL_DEBUG, "Bytes [ok] %zu / [not ok] %zu, Chunks: %zu\n", bytesOk, bytesNok, chunkCount);
+				// done exit loop to terminate
+				break;
 			}
 		} else {
-			vTaskDelay(portTICK_PERIOD_MS * 2);
+			if (lastUpdateTimestamp + maxUploadDelay * 1000 < millis()) {
+				Log_Println(webTxCanceled, LOGLEVEL_ERROR);
+				// resume the paused tasks
+				Led_TaskResume();
+				vTaskResume(AudioTaskHandle);
+				Rfid_TaskResume();
+				// just delete task without signaling (abort)
+				vTaskDelete(NULL);
+				return;
+			}
+
+			vTaskDelay(portTICK_PERIOD_MS * 5);
 			continue;
 		}
 	}
