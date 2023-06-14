@@ -884,7 +884,7 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 
 		// Create Ringbuffer for upload
 		if (explorerFileUploadRingBuffer == NULL) {
-			explorerFileUploadRingBuffer = xRingbufferCreate(8192, RINGBUF_TYPE_BYTEBUF);
+			explorerFileUploadRingBuffer = xRingbufferCreate(32768, RINGBUF_TYPE_BYTEBUF);
 		}
 
 		// Create Queue for receiving a signal from the store task as synchronisation
@@ -949,14 +949,15 @@ void explorerHandleFileStorageTask(void *parameter) {
 
 	BaseType_t uploadFileNotification;
 	uint32_t uploadFileNotificationValue;
+	size_t chunk_size = 16384; // 1436 = Payload
 	uploadFile = gFSystem.open((char *)parameter, "w");
+	uploadFile.setBufferSize(chunk_size);
 
 	// pause some tasks to get more free CPU time for the upload
 	vTaskSuspend(AudioTaskHandle);
 	Led_TaskPause(); 
 	Rfid_TaskPause();
 	size_t max_size = xRingbufferGetMaxItemSize(explorerFileUploadRingBuffer);
-	size_t chunk_size = 2048; // 1436 = Payload
 
 	for (;;) {
 		// check buffer is full with enough data or all data already sent
@@ -1002,8 +1003,8 @@ void explorerHandleFileStorageTask(void *parameter) {
 				vTaskDelete(NULL);
 				return;
 			}
-
-			// vTaskDelay(portTICK_PERIOD_MS * 5);
+			// feedTheDog();
+			vTaskDelay(portTICK_PERIOD_MS * 5);
 			continue;
 		}
 	}
