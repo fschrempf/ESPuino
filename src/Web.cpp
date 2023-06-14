@@ -955,24 +955,35 @@ void explorerHandleFileStorageTask(void *parameter) {
 	vTaskSuspend(AudioTaskHandle);
 	Led_TaskPause(); 
 	Rfid_TaskPause();
+	size_t max_size = xRingbufferGetMaxItemSize(explorerFileUploadRingBuffer);
+	size_t chunk_size = 2048; // 1436 = Payload
 
 	for (;;) {
-
-		item = (uint8_t *)xRingbufferReceive(explorerFileUploadRingBuffer, &item_size, portTICK_PERIOD_MS * 1u);
-
-		if (item != NULL) {
-			chunkCount++;
-			if (!uploadFile.write(item, item_size)) {
-				bytesNok += item_size;
-				feedTheDog();
+		// check buffer is full with enough data or all data already sent
+		uploadFileNotification = xTaskNotifyWait(0, 0, &uploadFileNotificationValue, 0);
+		size_t free_space = xRingbufferGetCurFreeSize(explorerFileUploadRingBuffer);
+		size_t data_available = max_size - free_space;
+		if ((data_available >= chunk_size) || (uploadFileNotification == pdPASS)) {
+			if (uploadFileNotification == pdPASS){
+				// if end of file, just write everything left
+				item = (uint8_t *)xRingbufferReceive(explorerFileUploadRingBuffer, &item_size, 0);
 			} else {
-				bytesOk += item_size;
-				vRingbufferReturnItem(explorerFileUploadRingBuffer, (void *)item);
+				// only write one chunk
+				item = (uint8_t *)xRingbufferReceiveUpTo(explorerFileUploadRingBuffer, &item_size, 0, chunk_size);
 			}
-			lastUpdateTimestamp = millis();
-		} else {
-			// not enough data in the buffer, check if all data arrived for the file
-			uploadFileNotification = xTaskNotifyWait(0, 0, &uploadFileNotificationValue, 0);
+
+			if (item != NULL) {
+				chunkCount++;
+				if (!uploadFile.write(item, item_size)) {
+					bytesNok += item_size;
+					feedTheDog();
+				} else {
+					bytesOk += item_size;
+					vRingbufferReturnItem(explorerFileUploadRingBuffer, (void *)item);
+				}
+				lastUpdateTimestamp = millis();
+			}
+
 			if (uploadFileNotification == pdPASS) {
 				uploadFile.close();
 				Log_Printf(LOGLEVEL_INFO, fileWritten, (char *)parameter, bytesNok+bytesOk, (millis() - transferStartTimestamp), (bytesNok+bytesOk)/(millis() - transferStartTimestamp));
@@ -980,7 +991,7 @@ void explorerHandleFileStorageTask(void *parameter) {
 				// done exit loop to terminate
 				break;
 			}
-
+		} else {
 			if (lastUpdateTimestamp + maxUploadDelay * 1000 < millis()) {
 				Log_Println(webTxCanceled, LOGLEVEL_ERROR);
 				// resume the paused tasks
@@ -992,9 +1003,9 @@ void explorerHandleFileStorageTask(void *parameter) {
 				return;
 			}
 
+			// vTaskDelay(portTICK_PERIOD_MS * 5);
+			continue;
 		}
-		// delay a bit to give the webtask some time fill the ringbuffer
-		vTaskDelay(1u);
 	}
 	// resume the paused tasks
 	Led_TaskResume();
@@ -1347,7 +1358,6 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 	static size_t fileIndex = 0;
 	static char tmpFileName[13];
 	esp_task_wdt_reset();
-
 	if (!index) {
 		snprintf(tmpFileName, 13, "/_%lu", millis());
 		tmpFile = gFSystem.open(tmpFileName, FILE_WRITE);
