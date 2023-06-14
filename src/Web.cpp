@@ -939,7 +939,7 @@ void explorerHandleFileStorageTask(void *parameter) {
 	Led_TaskPause(); 
 	Rfid_TaskPause();
 	size_t max_size = xRingbufferGetMaxItemSize(explorerFileUploadRingBuffer);
-	size_t chunk_size = 2048;
+	size_t chunk_size = 2048; // 1436 = Payload
 
 	for (;;) {
 		// check buffer is full with enough data or all data already sent
@@ -986,7 +986,7 @@ void explorerHandleFileStorageTask(void *parameter) {
 				return;
 			}
 
-			vTaskDelay(portTICK_PERIOD_MS * 5);
+			// vTaskDelay(portTICK_PERIOD_MS * 5);
 			continue;
 		}
 	}
