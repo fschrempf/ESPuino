@@ -69,7 +69,7 @@
 	const char modeSingleAudiobook[] = "Mode: audiobook";
 	const char modeSingleAudiobookLoop[] = "Mode: audiobook as infinite loop";
 	const char modeAllTrackAlphSorted[] = "Mode: all tracks (in alph. order) of directory '%s'";
-	const char modeAllTrackRandom[] = "Mode: all tracks (in random. order) of directory";
+	const char modeAllTrackRandom[] = "Mode: all tracks (in random. order) of directory '%s";
 	const char modeAllTrackAlphSortedLoop[] = "Mode: all tracks (in alph. order) of directory as infinite loop";
 	const char modeAllTrackRandomLoop[] = "Mode: all tracks (in random order) of directory as infinite loop";
 	const char modeWebstream[] = "Mode: webstream";
@@ -200,10 +200,7 @@
 	const char portExpanderFound[] = "Port-expander found";
 	const char portExpanderNotFound[] = "Unable to detect port-expander";
 	const char portExpanderInterruptEnabled[] = "Enabled interrupt-handling for port-expander";
-	const char warningRefactoring[] = "!!!!IMPORTANT!!!! Please review https://forum.espuino.de/t/wechsel-zum-refactoring-branch-was-ist-zu-beachten/510 !!!!IMPORTANT!!!!";
-	const char playlistGenModeUncached[] = "Playlist-generation: uncached";
-	const char playlistGenModeCached[] = "Playlist-generation: cached";
-	const char playlistCacheFoundBut0[] = "Playlist-cache-file found but 0 bytes";
+	const char playlistGen[] = "Playlist-generation";
 	const char bootLoopDetected[] = "Bootloop detected! Last RFID won't be restored.";
 	const char noBootLoopDetected[] = "No bootloop detected. Great :-)";
 	const char importCountNokNvs[] = "Number of invalid import-entries: %u";
@@ -211,7 +208,6 @@
 	const char errorWritingTmpfile[] = "Error occured while writing to import-tmpfile";
 	const char eraseRfidNvsWeb[] = "<p>NVS-RFID-assignments are being deleted...<br />Back to <a href=\"javascript:history.back()\">last page</a>.</p>";
 	const char eraseRfidNvs[] = "NVS-RFID-assignments are being deleted...";
-	const char erasePlaylistCachefile[] = "Playlist-cachefile deleted: %s";
 	const char fwStart[] = "Starting firmware-update via OTA...";
 	const char fwEnd[] = "Firmware-update finished";
 	const char otaNotSupported[] = "Firmware-update isn't supported by this ESPuino!";

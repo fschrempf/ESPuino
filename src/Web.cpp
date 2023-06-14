@@ -39,6 +39,7 @@ typedef struct {
 
 const char mqttTab[] = "<a class=\"nav-item nav-link\" id=\"nav-mqtt-tab\" data-toggle=\"tab\" href=\"#nav-mqtt\" role=\"tab\" aria-controls=\"nav-mqtt\" aria-selected=\"false\"><i class=\"fas fa-network-wired\"></i><span data-i18n=\"nav.mqtt\"></span></a>";
 const char ftpTab[] = "<a class=\"nav-item nav-link\" id=\"nav-ftp-tab\" data-toggle=\"tab\" href=\"#nav-ftp\" role=\"tab\" aria-controls=\"nav-ftp\" aria-selected=\"false\"><i class=\"fas fa-folder\"></i><span data-i18n=\"nav.ftp\"></span></a>";
+const char bluetoothTab[] = "<a class=\"nav-item nav-link\" id=\"nav-bt-tab\" data-toggle=\"tab\" href=\"#nav-bt\" role=\"tab\" aria-controls=\"nav-bt\" aria-selected=\"false\"><i class=\"fab fa-bluetooth\"></i><span data-i18n=\"nav.bluetooth\"></span></a>";
 
 AsyncWebServer wServer(80);
 AsyncWebSocket ws("/ws");
@@ -67,13 +68,13 @@ static void handleGetActiveSSID(AsyncWebServerRequest *request);
 static void handleGetHostname(AsyncWebServerRequest *request);
 static void handlePostHostname(AsyncWebServerRequest *request, JsonVariant &json);
 static void handleCoverImageRequest(AsyncWebServerRequest *request);
+static void handleWiFiScanRequest(AsyncWebServerRequest *request);
 
 static bool Web_DumpNvsToSd(const char *_namespace, const char *_destFile);
 
 static void onWebsocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
 static String templateProcessor(const String &templ);
 static void webserverStart(void);
-void Web_DeleteCachefile(const char *folderPath);
 
 // If PSRAM is available use it allocate memory for JSON-objects
 struct SpiRamAllocator {
@@ -146,6 +147,52 @@ class OneParamRewrite : public AsyncWebRewrite
   }
 };
 
+
+
+// First request will return 0 results unless you start scan from somewhere else (loop/setup)
+// Do not request more often than 3-5 seconds
+static void handleWiFiScanRequest(AsyncWebServerRequest *request) {
+	String json = "[";
+	int n = WiFi.scanComplete();
+	if (n == -2) {
+		// -2 if scan not triggered
+		WiFi.scanNetworks(true, false, true, 120);
+	} else if(n) {
+		for (int i = 0; i < n; ++i) {
+			if (i > 9) {
+				break;
+			}
+			// calculate RSSI as quality in percent
+			int quality;
+			if (WiFi.RSSI(i) <= -100) {
+				quality = 0;
+			} else if (WiFi.RSSI(i) >= -50) {
+				quality = 100;
+			} else {
+				quality = 2 * (WiFi.RSSI(i) + 100);
+			}
+			if (i) json += ",";
+			json += "{";
+			json += "\"ssid\":\"" + WiFi.SSID(i) + "\"";
+			json += ",\"bssid\":\"" + WiFi.BSSIDstr(i) + "\"";
+			json += ",\"rssi\":" + String(WiFi.RSSI(i));
+			json += ",\"channel\":" + String(WiFi.channel(i));
+			json += ",\"secure\":" + String(WiFi.encryptionType(i));
+			json += ",\"quality\":"+ String(quality); // WiFi strength in percent
+			json += ",\"wico\":\"w" + String(int(round(map(quality, 0, 100, 1, 4)))) + "\""; // WiFi strength icon ("w1"-"w4")
+			json += ",\"pico\":\"" + String((WIFI_AUTH_OPEN == WiFi.encryptionType(i)) ? "" : "pw") + "\""; // auth icon ("p1" for secured)
+			json += "}";
+		}
+		WiFi.scanDelete();
+		if(WiFi.scanComplete() == -2) {
+			WiFi.scanNetworks(true, false, true, 120);
+		}
+	}
+	json += "]";
+	request->send(200, "application/json", json);
+	json = String();
+}
+
 void Web_Init(void) {
 	wServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
 		AsyncWebServerResponse *response;
@@ -189,6 +236,10 @@ void Web_Init(void) {
 		#endif
 		System_RequestSleep();
 	});
+
+	wServer.on("/wifiscan", HTTP_GET, handleWiFiScanRequest);
+	// start a first WiFi scan (to get a WiFi list more quickly in webview)
+	WiFi.scanNetworks(true, false, true, 120);
 
 	// allow cors for local debug (https://github.com/me-no-dev/ESPAsyncWebServer/issues/1080)
 	DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization");
@@ -350,6 +401,10 @@ void webserverStart(void) {
 		});
 
 
+		// WiFi scan
+		wServer.on("/wifiscan", HTTP_GET, handleWiFiScanRequest);
+
+
 		// Fileexplorer (realtime)
 		wServer.on("/explorer", HTTP_GET, explorerHandleListRequest);
 
@@ -440,6 +495,12 @@ String templateProcessor(const String &templ) {
 		#else
 			return String();
 		#endif
+	} else if (templ == "SHOW_BLUETOOTH_TAB") { // Only show Bluetooth-tab if Bluetooth-support was compiled
+		#ifdef BLUETOOTH_ENABLE
+			return bluetoothTab;
+		#else
+			return String();
+		#endif		
 	} else if (templ == "INIT_LED_BRIGHTNESS") {
 		return String(gPrefsSettings.getUChar("iLedBrightness", 0));
 	} else if (templ == "NIGHT_LED_BRIGHTNESS") {
@@ -520,10 +581,14 @@ String templateProcessor(const String &templ) {
 #ifdef MQTT_ENABLE
 		return String(gMqttPort);
 #endif
-	} else if (templ == "BT_SOURCE_NAME") {
+	} else if (templ == "BT_DEVICE_NAME") {
 		if (gPrefsSettings.isKey("btDeviceName")) {
 			return gPrefsSettings.getString("btDeviceName", "");
 		}
+	} else if (templ == "BT_PIN_CODE") {
+		if (gPrefsSettings.isKey("btPinCode")) {
+			return gPrefsSettings.getString("btPinCode", "");
+		}		
 	} else if (templ == "IPv4") {
 		return WiFi.localIP().toString();
 	} else if (templ == "RFID_TAG_ID") {
@@ -628,6 +693,12 @@ bool processJsonRequest(char *_serialJson) {
 			(!String(_mqttServer).equals(gPrefsSettings.getString("mqttServer", "-1")))) {
 			return false;
 		}
+	} else if (doc.containsKey("bluetooth")) {
+		// bluetooth settings
+		const char *_btDeviceName = doc["bluetooth"]["deviceName"];
+		gPrefsSettings.putString("btDeviceName", (String)_btDeviceName);
+		const char *btPinCode = doc["bluetooth"]["pinCode"];
+		gPrefsSettings.putString("btPinCode", (String)btPinCode);
 	} else if (doc.containsKey("rfidMod")) {
 		const char *_rfidIdModId = object["rfidMod"]["rfidIdMod"];
 		uint8_t _modId = object["rfidMod"]["modId"];
@@ -807,7 +878,6 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 		convertFilenameToAscii(utf8FilePath, filePath);
 
 		Log_Printf(LOGLEVEL_INFO, writingFile, utf8FilePath.c_str());
-		Web_DeleteCachefile(utf8Folder.c_str());
 
 		// Create Parent directories
 		explorerCreateParentDirectories(filePath);
@@ -924,11 +994,7 @@ void explorerHandleFileStorageTask(void *parameter) {
 
 		}
 		// delay a bit to give the webtask some time fill the ringbuffer
-		#if ESP_ARDUINO_VERSION_MAJOR >= 2
 		vTaskDelay(1u);
-		#else
-		vTaskDelay(5u);
-		#endif
 	}
 	// resume the paused tasks
 	Led_TaskResume();
@@ -974,56 +1040,20 @@ void explorerHandleListRequest(AsyncWebServerRequest *request) {
 		return;
 	}
 
-	#if defined(HAS_FILEEXPLORER_SPEEDUP) || (ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(2, 0, 8))
-		bool isDir = false;
-		String MyfileName = root.getNextFileName(&isDir);
-		while (MyfileName != "") {
-			// ignore hidden folders, e.g. MacOS spotlight files
-			if (!startsWith( MyfileName.c_str() , (char *)"/.")) {
-				JsonObject entry = obj.createNestedObject();
-				convertAsciiToUtf8(MyfileName.c_str(), filePath);
-				std::string path = filePath;
-				std::string fileName = path.substr(path.find_last_of("/") + 1);
-				entry["name"] = fileName;
-				entry["dir"].set(isDir);
-			}
-			MyfileName = root.getNextFileName(&isDir);
-		}
-    #else
-		File file = root.openNextFile();
-
-	while (file) {
+	bool isDir = false;
+	String MyfileName = root.getNextFileName(&isDir);
+	while (MyfileName != "") {
 		// ignore hidden folders, e.g. MacOS spotlight files
-		#if ESP_ARDUINO_VERSION_MAJOR >= 2
-		if (!startsWith( file.path() , "/.")) {
-		#else
-		if (!startsWith( file.name() , "/.")) {
-		#endif
+		if (!startsWith( MyfileName.c_str() , (char *)"/.")) {
 			JsonObject entry = obj.createNestedObject();
-			#if ESP_ARDUINO_VERSION_MAJOR >= 2
-				convertAsciiToUtf8(file.path(), filePath);
-			#else
-				convertAsciiToUtf8(file.name(), filePath);
-			#endif
+			convertAsciiToUtf8(MyfileName.c_str(), filePath);
 			std::string path = filePath;
 			std::string fileName = path.substr(path.find_last_of("/") + 1);
-
-				entry["name"] = fileName;
-				entry["dir"].set(file.isDirectory());
-			}
-			file.close();
-			file = root.openNextFile();
-
-
-			if (!gPlayProperties.pausePlay) {
-				// time critical, avoid delay with many files on SD-card!
-				feedTheDog();
-			} else {
-				// If playback is active this can (at least sometimes) prevent scattering
-				vTaskDelay(portTICK_PERIOD_MS * 5);
-			}
+			entry["name"] = fileName;
+			entry["dir"].set(isDir);
 		}
-	#endif
+		MyfileName = root.getNextFileName(&isDir);
+	}
 	root.close();
 
 	serializeJson(obj, serializedJsonString);
@@ -1039,11 +1069,7 @@ bool explorerDeleteDirectory(File dir) {
 		if (file.isDirectory()) {
 			explorerDeleteDirectory(file);
 		} else {
-			#if ESP_ARDUINO_VERSION_MAJOR >= 2
-				gFSystem.remove(file.path());
-			#else
-				gFSystem.remove(file.name());
-			#endif
+			gFSystem.remove(file.path());
 		}
 
 		file = dir.openNextFile();
@@ -1051,23 +1077,7 @@ bool explorerDeleteDirectory(File dir) {
 		esp_task_wdt_reset();
 	}
 
-	#if ESP_ARDUINO_VERSION_MAJOR >= 2
-		return gFSystem.rmdir(dir.path());
-	#else
-		return gFSystem.rmdir(dir.name());
-	#endif
-}
-
-// Handles delete-requests for cachefiles.
-// This is necessary to avoid outdated cachefiles if content of a directory changes (create, rename, delete).
-void Web_DeleteCachefile(const char *folderPath) {
-	const String cacheFile = String(folderPath) + "/" + playlistCacheFile;
-	Log_Printf(LOGLEVEL_DEBUG, "Trying to erase: %s", cacheFile.c_str());
-	if (gFSystem.exists(cacheFile)) {
-		if (gFSystem.remove(cacheFile)) {
-			Log_Printf(LOGLEVEL_DEBUG, erasePlaylistCachefile, cacheFile.c_str());
-		}
-	}
+	return gFSystem.rmdir(dir.path());
 }
 
 // Handles download request of a file
@@ -1146,7 +1156,6 @@ void explorerHandleDeleteRequest(AsyncWebServerRequest *request) {
 				const String cPath = filePath;
 				if (gFSystem.remove(filePath)) {
 					Log_Printf(LOGLEVEL_INFO, "DELETE:  %s deleted", param->value().c_str());
-					Web_DeleteCachefile(cPath.substring(0, cPath.lastIndexOf('/')).c_str());
 				} else {
 					Log_Printf(LOGLEVEL_ERROR, "DELETE:  Cannot delete %s", param->value().c_str());
 				}
@@ -1196,8 +1205,6 @@ void explorerHandleRenameRequest(AsyncWebServerRequest *request) {
 		if (gFSystem.exists(srcFullFilePath)) {
 			if (gFSystem.rename(srcFullFilePath, dstFullFilePath)) {
 				Log_Printf(LOGLEVEL_INFO, "RENAME:  %s renamed to %s", srcPath->value().c_str(), dstPath->value().c_str());
-				// Also delete cache file inside the renamed folder
-				Web_DeleteCachefile(dstFullFilePath);
 			} else {
 				Log_Printf(LOGLEVEL_ERROR, "RENAME:  Cannot rename %s", srcPath->value().c_str());
 			}
@@ -1259,6 +1266,9 @@ void handlePostSavedSSIDs(AsyncWebServerRequest *request, JsonVariant &json) {
 	strncpy(networkSettings.password, (const char*) jsonObj["pwd"], 64);
 	networkSettings.password[64] = '\0';
 
+	// always perform perform a WiFi scan on startup?
+	static bool alwaysScan = (bool) jsonObj["scanwifionstart"];
+	gPrefsSettings.putBool("ScanWiFiOnStart", alwaysScan);
 
 	networkSettings.use_static_ip = (bool) jsonObj["static"];
 

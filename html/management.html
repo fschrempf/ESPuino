@@ -166,6 +166,7 @@
 			<a class="nav-item nav-link" id="nav-wifi-tab" data-toggle="tab" href="#nav-wifi" role="tab" aria-controls="nav-wifi" aria-selected="false"><i class="fas fa-wifi"></i><span class=".d-sm-none .d-md-block"><span data-i18n="nav.wifi">WiFi</span></a>
 			%SHOW_MQTT_TAB%
 			%SHOW_FTP_TAB%
+			%SHOW_BLUETOOTH_TAB%
 			<a class="nav-item nav-link" id="nav-general-tab" data-toggle="tab" href="#nav-general" role="tab" aria-controls="nav-general" aria-selected="false"><i class="fas fa-sliders-h"></i><span data-i18n="nav.general">General</span></a>
 			<a class="nav-item nav-link" id="nav-tools-tab" data-toggle="tab" href="#nav-tools" role="tab" aria-controls="nav-tools" aria-selected="false"><i class="fas fa-wrench"></i><span data-i18n="nav.tools">Tools</span></a>
 			<a class="nav-item nav-link" id="nav-forum-tab" data-toggle="tab" href="#nav-forum" role="tab" aria-controls="nav-forum" aria-selected="false"><i class="fas fa-comment"></i><span class=".d-sm-none .d-md-block"><span data-i18n="nav.forum">Forum</span></span></a>
@@ -200,6 +201,8 @@
 						<label for="pwd" data-i18n="[prepend]wifi.password.title">:</label>
 						<input type="password" class="form-control" id="pwd" name="pwd" data-i18n="[placeholder]wifi.password.placeholder" required>
 
+						<input type="checkbox" id="scan_wifi_on_start" name="scan_wifi_on_start" value=false>
+						<label for="scan_wifi_on_start" data-i18n="wifi.scan.enabled">Start with best WiFi</label><br><br>
 						<input type="checkbox" id="static_enabled" name="static_enabled" value=false>
 						<label for="static_enabled" data-i18n="[prepend]wifi.static.enabled">:</label>
 						<div id="wifi_static_div" style="display:none">
@@ -373,6 +376,7 @@
 								<option class="option-folder" value="7" data-i18n="files.rfid.playmode.mode.7"></option>
 								<option class="option-folder" value="9" data-i18n="files.rfid.playmode.mode.9"></option>
 								<option class="option-folder" value="13" data-i18n="files.rfid.playmode.mode.13"></option>
+								<option class="option-folder" value="14" data-i18n="files.rfid.playmode.mode.14"></option>
 								<option class="option-stream" value="8" data-i18n="files.rfid.playmode.mode.8"></option>
 								<option class="option-stream" value="11" data-i18n="files.rfid.playmode.mode.11"></option>
 							</select>
@@ -481,6 +485,45 @@
 				<br>
 				<div class="text-center">
 					<button type="button" class="btn btn-primary" onclick="ftpStart()" data-i18n="ftp.start.button"></button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="tab-pane fade" id="nav-bt" role="tabpanel" aria-labelledby="nav-bt-tab">
+		<div class="container" id="btConfig">
+			<form action="#btConfig" method="POST" onsubmit="btSettings('btConfig'); return false">
+				<div class="form-group col-md-12">
+					<legend data-i18n="bt.source.configtitle"></legend>
+					<label for="btDeviceName" data-i18n="[prepend]bt.device.title">:</label>
+					<input type="text" class="form-control" id="btDeviceName"
+						data-i18n="[placeholder]bt.device.placeholder" name="btDeviceName" value="%BT_DEVICE_NAME%"><br>
+					<label for="btPinCode" data-i18n="[prepend]bt.pincode.title">:</label>
+					<input type="text" class="form-control" id="btPinCode"
+						data-i18n="[placeholder]bt.pincode.placeholder" name="btPinCode" value="%BT_PINCODE%">
+				</div>
+				<br>
+				<div class="text-center">
+				<button type="submit" class="btn btn-primary" data-i18n="submit"></button> 
+				</div>
+			</form><br>
+			<div class="container" id="btStartSource">
+				<div class="form-group col-md-12">
+					<legend data-i18n="bt.source.title"></legend>
+					<div data-i18n="bt.source.desc"></div>
+					<br>
+					<div class="text-center">
+						<button type="button" class="btn btn-primary" onclick="sendControl(141)" data-i18n="bt.source.button"></button>
+					</div>
+				</div>
+			</div>
+			</div><br><br>
+		<div class="container" id="btStartSink">
+			<div class="form-group col-md-12">
+				<legend data-i18n="bt.sink.title"></legend>
+				<div data-i18n="bt.sink.desc"></div>
+				<br>
+				<div class="text-center">
+					<button type="button" class="btn btn-primary" onclick="sendControl(140)" data-i18n="bt.sink.button"></button>
 				</div>
 			</div>
 		</div>
@@ -1458,6 +1501,18 @@
 		socket.send(myJSON);
 	}
 
+	function btSettings(clickedId) {
+		lastIdclicked = clickedId;
+		var myObj = {
+			"bluetooth": {
+				deviceName: document.getElementById('btDeviceName').value,
+				pinCode: document.getElementById('btPinCode').value
+			}
+		};
+		var myJSON = JSON.stringify(myObj);
+		socket.send(myJSON);
+	}
+
 	function removeTrSlash(str) {
 		if (str.substr(-1) === '/') {
 			return str.substr(0, str.length - 1);
@@ -1507,11 +1562,13 @@
 	async function wifiConfig(clickedId) {
 		lastIdclicked = clickedId;
 		let static = document.getElementById('static_enabled').checked;
+		let scanwifionstart = document.getElementById('scan_wifi_on_start').checked;
 
 		var myObj = { 
 			ssid: document.getElementById('ssid').value,
 			pwd: document.getElementById('pwd').value,
-			static: static
+			static: static,
+			scanwifionstart: scanwifionstart
 		};
 
 		if (static) {

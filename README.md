@@ -178,8 +178,8 @@ to (re-)enable/disable WiFi:
 ESPuino can be used as Bluetooth sink (A2DP sink). In this mode you can stream audio (e.g. from a
 mobile device) via Bluetooth to your ESPuino. This mode can be enabled/disabled via a RFID
 modification card or by assigning action `CMD_TOGGLE_BLUETOOTH_MODE` to a button (or multi-button).
-Applying this will restart ESPuino immediately. Activated Bluetooth is indicated by four slow
-rotating _blue_ LEDs.
+Applying this will restart ESPuino immediately. Activated Bluetooth is indicated by four 
+slow rotating _blue-violet_ LEDs. After the Bluetooth device is paired the LEDs turn to blue.
 
 ### ESPuino as A2DP source (stream from ESPuino)
 
@@ -260,6 +260,8 @@ It's not just simply playing music; different playback modes are supported:
 - `Folder/playlist (alph. sorted)` => plays all tracks in alph. order from a folder forever
 - `Folder/playlist (random order)` => plays all tracks in random order from a folder forever
 - `All tracks of a random subdirectory (sorted alph.)` => plays of tracks in alph. order of a
+  randomly picked subdirectory of a given directory
+- `All tracks of a random subdirectory (random order)` => plays all tracks in random order of a
   randomly picked subdirectory of a given directory
 - `Webradio` => always only one "track": plays a webstream
 - `List (files from SD and/or webstreams) from local .m3u-File` => can be one or more files /
@@ -371,9 +373,6 @@ Most designs use a Neopixel ring, but a linear strip is also possible.
   music-autoplay.
 - If a folder should be played that contains many MP3s, the playlist generation can take a few
   seconds.
-- For all playback modes that are not single tracks or webradio a filecache is available to speed up
-  playlist generation. The cache is generated as you apply the corresponding RFID tag for the first
-  time. Use `CACHED_PLAYLIST_ENABLE` to enable it - I really recommend to use it.
 - A file's name including path isn't allowed to exceed 255 characters.
 - While the playlist is generated Neopixel indicates BUSY-mode.
 - After the last track was played, Neopixel indicates IDLE-mode.
