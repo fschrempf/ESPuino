@@ -46,6 +46,7 @@ AsyncWebSocket ws("/ws");
 AsyncEventSource events("/events");
 
 static bool webserverStarted = false;
+static uint32_t chunk_size = 8192;
 
 static RingbufHandle_t explorerFileUploadRingBuffer;
 static QueueHandle_t explorerFileUploadStatusQueue;
@@ -864,6 +865,9 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 
 	System_UpdateActivityTimer();
 
+	static size_t len_packet = 0;
+	static uint8_t * temp_buffer = nullptr;
+
 	// New File
 	if (!index) {
 		String utf8Folder = "/";
@@ -881,13 +885,15 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 
 		// Create Parent directories
 		explorerCreateParentDirectories(filePath);
+		temp_buffer = (uint8_t*) x_calloc(chunk_size + 2048, sizeof(uint8_t));
+		len_packet = 0;
 
 		// Create Ringbuffer for upload
 		if (explorerFileUploadRingBuffer == NULL) {
 			// size has to be carefully defined depending on the allocation size
 			// much more stable, if smaller than allocation-size.
 			// much slower, as soon as bigger...
-			explorerFileUploadRingBuffer = xRingbufferCreate(24576, RINGBUF_TYPE_BYTEBUF); 
+			explorerFileUploadRingBuffer = xRingbufferCreate(chunk_size*2 + 8*2, RINGBUF_TYPE_NOSPLIT);  // only keep one item
 		}
 
 		// Create Queue for receiving a signal from the store task as synchronisation
@@ -908,15 +914,31 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 	}
 
 	if (len) {
+		// only put fully alligned packets into buffer 
+		memcpy(temp_buffer + len_packet, data, len);
+		len_packet += len;
+
+		if (len_packet >= chunk_size) {
 		// stream the incoming chunk to the ringbuffer
-		xRingbufferSend(explorerFileUploadRingBuffer, data, len, portTICK_PERIOD_MS * 1000);
+			xRingbufferSend(explorerFileUploadRingBuffer, temp_buffer, chunk_size, portTICK_PERIOD_MS * 1000);
+			len_packet -= chunk_size;
+			if (len_packet > 0){
+				memcpy(temp_buffer, temp_buffer+chunk_size, len_packet);
+			}
+		}
 	}
 
 	if (final) {
+		if (len_packet > 0) {
+		// stream the incoming chunk to the ringbuffer
+			xRingbufferSend(explorerFileUploadRingBuffer, temp_buffer, len_packet, portTICK_PERIOD_MS * 1000);
+		}
+		len_packet = 0;
 		// notify storage task that last data was stored on the ring buffer
 		xTaskNotify(fileStorageTaskHandle, 1u, eNoAction);
 		// watit until the storage task is sending the signal to finish
 		uint8_t signal;
+		free(temp_buffer);
 		xQueueReceive(explorerFileUploadStatusQueue, &signal, portMAX_DELAY);
 	}
 }
@@ -952,7 +974,7 @@ void explorerHandleFileStorageTask(void *parameter) {
 
 	BaseType_t uploadFileNotification;
 	uint32_t uploadFileNotificationValue;
-	size_t chunk_size = 16384; // 1436 = Payload
+	// size_t chunk_size = 16384; // 1436 = Payload
 	uploadFile = gFSystem.open((char *)parameter, "w");
 	uploadFile.setBufferSize(chunk_size);
 
@@ -966,16 +988,10 @@ void explorerHandleFileStorageTask(void *parameter) {
 	for (;;) {
 		// check buffer is full with enough data or all data already sent
 		uploadFileNotification = xTaskNotifyWait(0, 0, &uploadFileNotificationValue, 0);
-		size_t free_space = xRingbufferGetCurFreeSize(explorerFileUploadRingBuffer);
-		size_t data_available = max_size - free_space;
-		if ((data_available >= chunk_size) || (uploadFileNotification == pdPASS)) {
-			if (uploadFileNotification == pdPASS){
-				// if end of file, just write everything left
-				item = (uint8_t *)xRingbufferReceive(explorerFileUploadRingBuffer, &item_size, 0);
-			} else {
-				// only write one chunk
-				item = (uint8_t *)xRingbufferReceiveUpTo(explorerFileUploadRingBuffer, &item_size, 0, chunk_size);
-			}
+		// size_t free_space = xRingbufferGetCurFreeSize(explorerFileUploadRingBuffer);
+		// size_t data_available = max_size - free_space;
+		item = (uint8_t *)xRingbufferReceive(explorerFileUploadRingBuffer, &item_size, 0);
+		if ((item) || (uploadFileNotification == pdPASS)) {
 
 			if (item != NULL) {
 				chunkCount++;
