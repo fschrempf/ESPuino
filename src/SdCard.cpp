@@ -50,8 +50,8 @@ void testFileIO(fs::FS &fs, const char * path, uint32_t buffSize, uint32_t numMB
   if (write){
 	File file = fs.open(path, FILE_WRITE);
 	if (file) {
-		setBufferOfFile(file, buffSize);
-		file.setBufferSize(buffSize); //16384
+		// setBufferOfFile(file, buffSize);
+		file.setBufferSize(16384);
 		size_t i;
 		uint32_t start = millis();
 		auto numToWrite = (numMB * 1024 * 1024) / buffSize;
@@ -124,12 +124,10 @@ void SdCard_Init(void) {
 	#endif
 			}
 
-  for (int k = 0; k < 1; k++){	
   for (int i = 0; i <= 5; i++) {
-    testFileIO(SD_MMC, "/test.txt", 512 * pow(2, i), 2, true);
+    // testFileIO(SD_MMC, "/test.txt", 512 * pow(2, i), 2, true);
   }
   Log_Println("----------------------", LOGLEVEL_INFO);
-  }
 }
 
 
