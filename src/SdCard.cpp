@@ -6,7 +6,6 @@
 #include "Log.h"
 #include "MemX.h"
 #include "System.h"
-#include "vfs_api.h"
 
 #ifdef SD_MMC_1BIT_MODE
 	fs::FS gFSystem = (fs::FS)SD_MMC;
@@ -15,90 +14,11 @@
 	fs::FS gFSystem = (fs::FS)SD;
 #endif
 
-class FileWithBuffer : public File {
-	public:
-	FileWithBuffer();
-
-	fs::FileImplPtr getFile(){
-		return this->_p;
-	} 
-};
-
-class FSFileImplWithBuffer : public VFSFileImpl {
-	public:
-	FSFileImplWithBuffer();
-
-	FILE * getFile(){
-		return this->_f;
-	}
-
-};
-
-void setBufferOfFile(File file, size_t new_buffer_size){
-	fs::FileImplPtr file_imp_ptr = reinterpret_cast<FileWithBuffer *>(&file)->getFile();
-	std::shared_ptr<VFSFileImpl> vfs_file_impl = std::static_pointer_cast<VFSFileImpl>(file_imp_ptr);
-	std::shared_ptr<FSFileImplWithBuffer> vfs_file_impl_with_buf = std::static_pointer_cast<FSFileImplWithBuffer>(vfs_file_impl);
-	FILE * file_for_buf = vfs_file_impl_with_buf->getFile();
-	setvbuf(file_for_buf,NULL,_IOFBF, new_buffer_size);
-}
-
-
-
-void testFileIO(fs::FS &fs, const char * path, uint32_t buffSize, uint32_t numMB, bool write = false) {
-  uint8_t * buff = new uint8_t[buffSize];
- 
-  if (write){
-	File file = fs.open(path, FILE_WRITE);
-	if (file) {
-		// setBufferOfFile(file, buffSize);
-		file.setBufferSize(16384);
-		size_t i;
-		uint32_t start = millis();
-		auto numToWrite = (numMB * 1024 * 1024) / buffSize;
-		for (i = 0; i < numToWrite; i++) {
-		file.write(buff, buffSize);
-		yield();
-		}
-		uint32_t end = millis() - start;
-		float kbps = numMB * 1024 * 1024 / end;
-
-		Log_Printf(LOGLEVEL_INFO, "%u MB written using %d byte buffer for %u ms @ %f KBps", numMB, buffSize, end, kbps);
-		file.close();
-	} else {
-		Log_Println("Failed to open file for writing", LOGLEVEL_INFO);
-	}
-  } else {
-
-	File file = fs.open(path);
-	if (file) {
-		uint32_t len = file.size();
-		size_t flen = len;
-		uint32_t start = millis();
-		while (len) {
-		size_t toRead = len;
-		if (toRead > buffSize) {
-			toRead = buffSize;
-		}
-		file.read(buff, toRead);
-		len -= toRead;
-		}
-		uint32_t end = millis() - start;
-		float kbps = numMB * 1024 * 1024 / end;
-		Log_Printf(LOGLEVEL_INFO, "%u MB read using %d byte buffer for %u ms @ %f KBps", flen / 1024 / 1024, buffSize, end, kbps);
-		file.close();
-	} else {
-		Log_Println("Failed to open file for reading", LOGLEVEL_INFO);
-	}
-  }
-
-  delete[] buff;
-}
-
 void SdCard_Init(void) {
 	#ifndef SINGLE_SPI_ENABLE
 		#ifdef SD_MMC_1BIT_MODE
 			pinMode(2, INPUT_PULLUP);
-			while (!SD_MMC.begin("/sdcard", true, false, SDMMC_FREQ_HIGHSPEED)) {
+			while (!SD_MMC.begin("/sdcard", true)) {
 		#else
 			pinMode(SPISD_CS, OUTPUT);
 			digitalWrite(SPISD_CS, HIGH);
@@ -123,13 +43,7 @@ void SdCard_Init(void) {
 				}
 	#endif
 			}
-
-  for (int i = 0; i <= 5; i++) {
-    // testFileIO(SD_MMC, "/test.txt", 512 * pow(2, i), 2, true);
-  }
-  Log_Println("----------------------", LOGLEVEL_INFO);
 }
-
 
 void SdCard_Exit(void) {
 	// SD card goto idle mode
