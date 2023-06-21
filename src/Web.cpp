@@ -46,7 +46,14 @@ AsyncWebSocket ws("/ws");
 AsyncEventSource events("/events");
 
 static bool webserverStarted = false;
-static uint32_t chunk_size = 8192;
+static const uint32_t chunk_size = 16384;
+static const uint32_t nr_of_buffers = 2;
+
+uint8_t buffer[nr_of_buffers][chunk_size];
+volatile uint32_t size_in_buffer[nr_of_buffers];
+volatile bool buffer_full[nr_of_buffers];
+volatile uint32_t index_buffer_write = 0;
+volatile uint32_t index_buffer_read = 0;
 
 static RingbufHandle_t explorerFileUploadRingBuffer;
 static QueueHandle_t explorerFileUploadStatusQueue;
@@ -888,17 +895,23 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 		temp_buffer = (uint8_t*) x_calloc(chunk_size + 2048, sizeof(uint8_t));
 		len_packet = 0;
 
-		// Create Ringbuffer for upload
-		if (explorerFileUploadRingBuffer == NULL) {
-			// size has to be carefully defined depending on the allocation size
-			// much more stable, if smaller than allocation-size.
-			// much slower, as soon as bigger...
-			explorerFileUploadRingBuffer = xRingbufferCreate(chunk_size*2 + 8*2, RINGBUF_TYPE_NOSPLIT);  // only keep one item
-		}
+		// // Create Ringbuffer for upload
+		// if (explorerFileUploadRingBuffer == NULL) {
+		// 	// size has to be carefully defined depending on the allocation size
+		// 	// much more stable, if smaller than allocation-size.
+		// 	// much slower, as soon as bigger...
+		// 	explorerFileUploadRingBuffer = xRingbufferCreate(chunk_size*2 + 8*2, RINGBUF_TYPE_NOSPLIT);  // only keep one item
+		// }
 
 		// Create Queue for receiving a signal from the store task as synchronisation
 		if (explorerFileUploadStatusQueue == NULL) {
 			explorerFileUploadStatusQueue = xQueueCreate(1, sizeof(uint8_t));
+		}
+
+		index_buffer_write = 0;
+		index_buffer_read = 0;
+		for (uint32_t i = 0; i < nr_of_buffers; i++){
+			size_in_buffer[i] = 0;
 		}
 
 		// Create Task for handling the storage of the data
@@ -915,30 +928,42 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 
 	if (len) {
 		// only put fully alligned packets into buffer 
-		memcpy(temp_buffer + len_packet, data, len);
-		len_packet += len;
-
-		if (len_packet >= chunk_size) {
-		// stream the incoming chunk to the ringbuffer
-			xRingbufferSend(explorerFileUploadRingBuffer, temp_buffer, chunk_size, portTICK_PERIOD_MS * 1000);
-			len_packet -= chunk_size;
-			if (len_packet > 0){
-				memcpy(temp_buffer, temp_buffer+chunk_size, len_packet);
-			}
+		while (buffer_full[index_buffer_write]){
+			vTaskDelay(2);
 		}
+		
+		size_t len_to_write = len;
+		size_t space_left = chunk_size - size_in_buffer[index_buffer_write];
+		if (space_left < len_to_write){
+			len_to_write = space_left;
+		}
+		memcpy(buffer[index_buffer_write]+size_in_buffer[index_buffer_write], data, len_to_write);
+		size_in_buffer[index_buffer_write] += len_to_write;
+
+		if (size_in_buffer[index_buffer_write] == chunk_size){
+			buffer_full[index_buffer_write] = true;
+			index_buffer_write = (index_buffer_write + 1) % nr_of_buffers;
+		}
+		// if still content left, put it into next buffer
+		if (len_to_write < len) {
+			while (buffer_full[index_buffer_write]){
+				vTaskDelay(2);
+			}
+			size_t spare_length_to_write = len-len_to_write;
+			memcpy(buffer[index_buffer_write], data + len_to_write, spare_length_to_write);
+			size_in_buffer[index_buffer_write] = spare_length_to_write;
+		}
+		
 	}
 
 	if (final) {
-		if (len_packet > 0) {
-		// stream the incoming chunk to the ringbuffer
-			xRingbufferSend(explorerFileUploadRingBuffer, temp_buffer, len_packet, portTICK_PERIOD_MS * 1000);
+		if (size_in_buffer[index_buffer_write] > 0) {
+			buffer_full[index_buffer_write] = true;
 		}
-		len_packet = 0;
 		// notify storage task that last data was stored on the ring buffer
 		xTaskNotify(fileStorageTaskHandle, 1u, eNoAction);
 		// watit until the storage task is sending the signal to finish
 		uint8_t signal;
-		free(temp_buffer);
 		xQueueReceive(explorerFileUploadStatusQueue, &signal, portMAX_DELAY);
 	}
 }
@@ -983,25 +1008,26 @@ void explorerHandleFileStorageTask(void *parameter) {
 	vTaskSuspend(AudioTaskHandle);
 	Led_TaskPause(); 
 	Rfid_TaskPause();
-	size_t max_size = xRingbufferGetMaxItemSize(explorerFileUploadRingBuffer);
 
 	for (;;) {
 		// check buffer is full with enough data or all data already sent
 		uploadFileNotification = xTaskNotifyWait(0, 0, &uploadFileNotificationValue, 0);
-		// size_t free_space = xRingbufferGetCurFreeSize(explorerFileUploadRingBuffer);
-		// size_t data_available = max_size - free_space;
-		item = (uint8_t *)xRingbufferReceive(explorerFileUploadRingBuffer, &item_size, 0);
-		if ((item) || (uploadFileNotification == pdPASS)) {
+		if ((buffer_full[index_buffer_read]) || (uploadFileNotification == pdPASS)) {
 
-			if (item != NULL) {
+			while (buffer_full[index_buffer_read]){
 				chunkCount++;
-				if (!uploadFile.write(item, item_size)) {
+				item_size = size_in_buffer[index_buffer_read];
+				if (!uploadFile.write(buffer[index_buffer_read], item_size)) {
 					bytesNok += item_size;
 					feedTheDog();
 				} else {
 					bytesOk += item_size;
-					vRingbufferReturnItem(explorerFileUploadRingBuffer, (void *)item);
 				}
+				// update handling of buffers
+				size_in_buffer[index_buffer_read] = 0;
+				buffer_full[index_buffer_read] = 0;
+				index_buffer_read = (index_buffer_read + 1) % nr_of_buffers;
+				// update timestamp
 				lastUpdateTimestamp = millis();
 			}
 
@@ -1023,8 +1049,7 @@ void explorerHandleFileStorageTask(void *parameter) {
 				vTaskDelete(NULL);
 				return;
 			}
-			// feedTheDog();
-			vTaskDelay(portTICK_PERIOD_MS * 3);
+			vTaskDelay(portTICK_PERIOD_MS * 2);
 			continue;
 		}
 	}
