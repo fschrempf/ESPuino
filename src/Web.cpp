@@ -46,16 +46,15 @@ AsyncWebSocket ws("/ws");
 AsyncEventSource events("/events");
 
 static bool webserverStarted = false;
-static const uint32_t chunk_size = 16384;
-static const uint32_t nr_of_buffers = 2;
+static const uint32_t chunk_size = 16384; // size has to be equal or smaller than the allocation size
+static const uint32_t nr_of_buffers = 2; // at least two buffers. No speed improvement yet with more than two.
 
 uint8_t buffer[nr_of_buffers][chunk_size];
 volatile uint32_t size_in_buffer[nr_of_buffers];
 volatile bool buffer_full[nr_of_buffers];
-volatile uint32_t index_buffer_write = 0;
-volatile uint32_t index_buffer_read = 0;
+uint32_t index_buffer_write = 0;
+uint32_t index_buffer_read = 0;
 
-static RingbufHandle_t explorerFileUploadRingBuffer;
 static QueueHandle_t explorerFileUploadStatusQueue;
 static TaskHandle_t fileStorageTaskHandle;
 
@@ -872,9 +871,6 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 
 	System_UpdateActivityTimer();
 
-	static size_t len_packet = 0;
-	static uint8_t * temp_buffer = nullptr;
-
 	// New File
 	if (!index) {
 		String utf8Folder = "/";
@@ -892,26 +888,18 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 
 		// Create Parent directories
 		explorerCreateParentDirectories(filePath);
-		temp_buffer = (uint8_t*) x_calloc(chunk_size + 2048, sizeof(uint8_t));
-		len_packet = 0;
-
-		// // Create Ringbuffer for upload
-		// if (explorerFileUploadRingBuffer == NULL) {
-		// 	// size has to be carefully defined depending on the allocation size
-		// 	// much more stable, if smaller than allocation-size.
-		// 	// much slower, as soon as bigger...
-		// 	explorerFileUploadRingBuffer = xRingbufferCreate(chunk_size*2 + 8*2, RINGBUF_TYPE_NOSPLIT);  // only keep one item
-		// }
 
 		// Create Queue for receiving a signal from the store task as synchronisation
 		if (explorerFileUploadStatusQueue == NULL) {
 			explorerFileUploadStatusQueue = xQueueCreate(1, sizeof(uint8_t));
 		}
 
+		// reset buffers
 		index_buffer_write = 0;
 		index_buffer_read = 0;
 		for (uint32_t i = 0; i < nr_of_buffers; i++){
 			size_in_buffer[i] = 0;
+			buffer_full[i] = false;
 		}
 
 		// Create Task for handling the storage of the data
@@ -927,36 +915,41 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 	}
 
 	if (len) {
-		// only put fully alligned packets into buffer 
+		// wait till buffer is ready
 		while (buffer_full[index_buffer_write]){
-			vTaskDelay(2);
+			vTaskDelay(2); 
 		}
-		
+
 		size_t len_to_write = len;
 		size_t space_left = chunk_size - size_in_buffer[index_buffer_write];
 		if (space_left < len_to_write){
 			len_to_write = space_left;
 		}
+		// write content to buffer
 		memcpy(buffer[index_buffer_write]+size_in_buffer[index_buffer_write], data, len_to_write);
 		size_in_buffer[index_buffer_write] += len_to_write;
 
+		// check if buffer is filled. If full, signal that ready and change buffers
 		if (size_in_buffer[index_buffer_write] == chunk_size){
+			// signal, that buffer is ready. Increment index
 			buffer_full[index_buffer_write] = true;
 			index_buffer_write = (index_buffer_write + 1) % nr_of_buffers;
-		}
-		// if still content left, put it into next buffer
-		if (len_to_write < len) {
-			while (buffer_full[index_buffer_write]){
-				vTaskDelay(2);
+
+			// if still content left, put it into next buffer
+			if (len_to_write < len) {
+				// wait till new buffer is ready
+				while (buffer_full[index_buffer_write]){
+					vTaskDelay(2);
+				}
+				size_t len_left_to_write = len-len_to_write;
+				memcpy(buffer[index_buffer_write], data + len_to_write, len_left_to_write);
+				size_in_buffer[index_buffer_write] = len_left_to_write;
 			}
-			size_t spare_length_to_write = len-len_to_write;
-			memcpy(buffer[index_buffer_write], data + len_to_write, spare_length_to_write);
-			size_in_buffer[index_buffer_write] = spare_length_to_write;
-		}
-		
+		}		
 	}
 
 	if (final) {
+		// if file not completely done yet, signal that buffer is filled
 		if (size_in_buffer[index_buffer_write] > 0) {
 			buffer_full[index_buffer_write] = true;
 		}
@@ -987,19 +980,16 @@ void feedTheDog(void) {
 
 void explorerHandleFileStorageTask(void *parameter) {
 	File uploadFile;
-	size_t item_size;
 	size_t bytesOk = 0;
 	size_t bytesNok = 0;
 	uint32_t chunkCount = 0;
 	uint32_t transferStartTimestamp = millis();
-	uint8_t *item;
 	uint8_t value = 0;
 	uint32_t lastUpdateTimestamp = millis();
 	uint32_t maxUploadDelay = 20;    // After this delay (in seconds) task will be deleted as transfer is considered to be finally broken
 
 	BaseType_t uploadFileNotification;
 	uint32_t uploadFileNotificationValue;
-	// size_t chunk_size = 16384; // 1436 = Payload
 	uploadFile = gFSystem.open((char *)parameter, "w");
 	uploadFile.setBufferSize(chunk_size);
 
@@ -1016,7 +1006,7 @@ void explorerHandleFileStorageTask(void *parameter) {
 
 			while (buffer_full[index_buffer_read]){
 				chunkCount++;
-				item_size = size_in_buffer[index_buffer_read];
+				size_t item_size = size_in_buffer[index_buffer_read];
 				if (!uploadFile.write(buffer[index_buffer_read], item_size)) {
 					bytesNok += item_size;
 					feedTheDog();
