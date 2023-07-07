@@ -271,7 +271,7 @@ void AudioPlayer_HeadphoneVolumeManager(void) {
 			}
 			AudioPlayer_HeadphoneLastDetectionState = currentHeadPhoneDetectionState;
 			AudioPlayer_HeadphoneLastDetectionTimestamp = millis();
-			Log_Printf(LOGLEVEL_INFO, "%s: %u", maxVolumeSet, AudioPlayer_MaxVolume);
+			Log_Printf(LOGLEVEL_INFO, maxVolumeSet, AudioPlayer_MaxVolume);
 		}
 	#endif
 }
@@ -297,8 +297,9 @@ void AudioPlayer_Task(void *parameter) {
 	#endif
 
 	uint8_t settleCount = 0;
+	AudioPlayer_CurrentVolume = AudioPlayer_GetInitVolume();
 	audio->setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-	audio->setVolume(AudioPlayer_GetInitVolume());
+	audio->setVolume(AudioPlayer_CurrentVolume);
 	audio->forceMono(gPlayProperties.currentPlayMono);
 	if (gPlayProperties.currentPlayMono) {
 		audio->setTone(3, 0, 0);
@@ -668,13 +669,14 @@ void AudioPlayer_Task(void *parameter) {
 		// Handle IP-announcement
 		if (gPlayProperties.tellIpAddress) {
 			gPlayProperties.tellIpAddress = false;
-			char ipBuf[16];
-			Wlan_GetIpAddress().toCharArray(ipBuf, sizeof(ipBuf));
+			String ipText = Wlan_GetIpAddress();
 			bool speechOk;
 			#if (LANGUAGE == DE)
-				speechOk = audio->connecttospeech(ipBuf, "de");
+				ipText.replace(".", "Punkt");		// make IP as text (replace thousand separator)
+				speechOk = audio->connecttospeech(ipText.c_str(), "de");
 			#else
-				speechOk = audio->connecttospeech(ipBuf, "en");
+				ipText.replace(".", "point");
+				speechOk = audio->connecttospeech(ipText.c_str(),, "en");
 			#endif
 			if (!speechOk) {
 				System_IndicateError();

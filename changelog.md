@@ -1,4 +1,11 @@
 ## DEV-branch
+
+* 04.07.2023: fix volume jumping at startup when initVolume <> factory default (3u)
+* 29.06.2023: Update PN5180 library to fix compilation with DCORE_DEBUG_LEVEL=5
+* 25.06.2023: Some spelling corrections, thanks to @SciLor !
+* 23.06.2023: CMD_TELL_IP_ADDRESS: IP as text (replace thousand separator with word "point")
+* 23.06.2023: web-upload improvement (#249). Thank's to @Joe91 !!
+* 23.06.2023: Refactor web: Move dependant html-code from web.cpp to management.html (#250) 
 * 20.06.2023: PlatformIO package 6.3.2
 * 20.06.2023: Move ScanWiFiOnStart to global WiFi configuration (#248) 
 * 18.06.2023: Stricter hostname validation (#246). Thank's to @SZenglein !!
