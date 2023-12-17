@@ -78,10 +78,8 @@
 	#endif
 
 	// I2C-configuration (necessary at least for port-expander - don't change!)
-	#ifdef I2C_2_ENABLE
-		#define ext_IIC_CLK		4		// i2c-SCL (clock)
-		#define ext_IIC_DATA		13		// i2c-SDA (data)
-	#endif
+	#define ext_IIC_CLK		4		// i2c-SCL (clock)
+	#define ext_IIC_DATA		13		// i2c-SDA (data)
 
 	// Wake-up button => this also is the interrupt-pin if port-expander is enabled!
 	// Please note: only RTC-GPIOs (0, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 34, 35, 36, 39, 99) can be used! Set to 99 to DISABLE.
